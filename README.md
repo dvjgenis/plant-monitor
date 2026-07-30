@@ -38,6 +38,7 @@ It’s a concrete answer to: *can you design, ship, and maintain a small IoT pro
 ## Contents
 
 - [Why this matters](#-why-this-matters)
+- [Tech vocabulary](#-tech-vocabulary)
 - [Two views](#-two-views--live-vs-portfolio)
 - [How it works](#-how-it-works)
 - [Features](#-features)
@@ -48,6 +49,33 @@ It’s a concrete answer to: *can you design, ship, and maintain a small IoT pro
 - [Moisture bands](#-moisture-bands)
 - [Ops](#-ops)
 - [Full deploy guide](DEPLOY.md)
+
+---
+
+## 📖 Tech vocabulary
+
+Plain-language definitions for terms used in this project:
+
+| Term | Meaning here |
+|------|----------------|
+| **IoT** (Internet of Things) | Everyday devices with sensors and network access — here, a soil probe that talks to a home server over Wi‑Fi. |
+| **ESP32** | A low-cost microcontroller board with Wi‑Fi. It reads the soil sensor and POSTs moisture readings to the Pi. |
+| **Raspberry Pi** | A small always-on Linux computer. It runs the FastAPI server, stores readings, and serves the home dashboard. |
+| **Sensor / ADC** | The moisture probe outputs an analog voltage; the ESP32’s ADC turns that into a number that gets mapped to a % wetness. |
+| **API** | A contract for machines to talk — e.g. `POST /api/moisture` for the ESP32, `GET /api/plants` for the dashboard. |
+| **FastAPI** | The Python web framework that implements that API on the Pi. |
+| **SQLite** | A file-based database on the Pi (`plants.db`) that stores every reading. |
+| **CSV** | A simple spreadsheet-style log (`readings.csv`) also written on the Pi and synced into GitHub for the portfolio. |
+| **PWA** (Progressive Web App) | A website that can be installed to the phone home screen and feels app-like. The live dashboard at `plant-pi.local:8000` is the PWA. |
+| **Streamlit** | A Python toolkit for data apps. Used here for the *public* portfolio view (not the live home monitor). |
+| **Time series** | Data indexed by time — moisture % over hours and days, plotted on a 00:00–24:00 axis. |
+| **Data analytics** | Exploring and summarizing those readings (averages, status bands, day charts) to understand plant hydration. |
+| **Data science** | Broader practice of asking questions with data — here: what does “healthy moisture” look like for each plant over time? |
+| **Data engineering** | Building reliable pipelines so data flows from sensor → storage → UI without babysitting (ingest API, SQLite/CSV, sync script). |
+| **Visualization** | Charts, gauges, and badges that make moisture status obvious at a glance (Chart.js at home, Altair on Streamlit). |
+| **Web development** | HTML/CSS/JS (and Streamlit) used to ship those interfaces as real products, not notebooks alone. |
+| **systemd** | Linux service manager that keeps the Pi server running after reboot. |
+| **API key** | A shared secret (`PLANT_API_KEY`) required for POST/DELETE so random clients can’t spam or wipe data. |
 
 ---
 
