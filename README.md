@@ -69,7 +69,8 @@ It’s a concrete answer to: *can you design, ship, and maintain a small IoT pro
 | Who | Dulf, on home Wi‑Fi | Visitors / recruiters |
 | Where | `http://plant-pi.local:8000` | **[plant-monitor.streamlit.app](https://plant-monitor.streamlit.app/)** |
 | Data | Live Pi SQLite + CSV | Committed `readings.csv` |
-| Updates | ~every 30s | After sync + `git push` |
+| Sensor posts | Every 30 min (`:00` / `:30`) | Same snapshot, after sync |
+| UI refresh | ~every 30s while open | After sync + `git push` |
 | Secrets | API key for POST/DELETE | None |
 
 **Open the public demo:** [https://plant-monitor.streamlit.app/](https://plant-monitor.streamlit.app/)
@@ -84,7 +85,7 @@ The PWA is the monitoring tool. Streamlit is the curated demo of the same botani
   ESP32 + soil probe          Raspberry Pi                 Views
   ─────────────────          ─────────────                 ─────
         │                         │
-        │  Wi‑Fi POST             │  plant-pi.local:8000
+        │  Wi‑Fi POST (:00/:30)   │  plant-pi.local:8000
         │  + API key              ├──────────────────────►  Home PWA (live)
         └────────────────────────►│  FastAPI · SQLite
                                   │  readings.csv
@@ -110,7 +111,7 @@ The PWA is the monitoring tool. Streamlit is the curated demo of the same botani
 
 | Layer | Tech |
 |------|------|
-| Embedded | ESP32 (Arduino), ADC sensing, calibration, NTP-aligned posts |
+| Embedded | ESP32 (Arduino), ADC sensing, calibration, NTP-aligned posts every 30 min (`:00` / `:30`) |
 | Host | Raspberry Pi, `systemd`, SSH deploy |
 | API | FastAPI, SQLite, CSV export, API-key middleware |
 | Home UI | Installable PWA (manifest), Chart.js |
@@ -211,7 +212,7 @@ Plain-language definitions for terms used in this project:
 | Term | Meaning here |
 |------|----------------|
 | **IoT** (Internet of Things) | Everyday devices with sensors and network access — here, a soil probe that talks to a home server over Wi‑Fi. |
-| **ESP32** | A low-cost microcontroller board with Wi‑Fi. It reads the soil sensor and POSTs moisture readings to the Pi. |
+| **ESP32** | A low-cost microcontroller board with Wi‑Fi. It reads the soil sensor and POSTs moisture readings to the Pi every 30 minutes on the clock (`:00`, `:30`). |
 | **Raspberry Pi** | A small always-on Linux computer. It runs the FastAPI server, stores readings, and serves the home dashboard. |
 | **Sensor / ADC** | The moisture probe outputs an analog voltage; the ESP32’s ADC turns that into a number that gets mapped to a % wetness. |
 | **API** | A contract for machines to talk — e.g. `POST /api/moisture` for the ESP32, `GET /api/plants` for the dashboard. |

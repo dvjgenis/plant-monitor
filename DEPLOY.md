@@ -110,6 +110,8 @@ const char* serverName = "http://10.0.0.43:8000/api/moisture";
 
 Upload from Arduino IDE over USB. After upload, the ESP32 can run from wall power on the same Wi‑Fi. Interval changes require USB again.
 
+Current cadence: **every 30 minutes**, NTP-aligned to the clock (`:00`, `:30`). Set via `INTERVAL_MINUTES = 30` in the sketch.
+
 Firmware reference: local `arduino.md` (gitignored).
 
 ---
