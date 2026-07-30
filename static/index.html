@@ -575,8 +575,8 @@
     <header class="top">
       <div class="brand-block">
         <h1>Plant Hydration Hub</h1>
-        <p>Live soil moisture from your ESP32 sensors</p>
-        <p class="pwa-hint">On iPhone: open in Safari → Share → Add to Home Screen</p>
+        <p>Dulf’s live soil moisture dashboard · ESP32 → Raspberry Pi</p>
+        <p class="pwa-hint">On iPhone: Safari → Share → Add to Home Screen</p>
       </div>
       <div class="toolbar">
         <div class="sync-meta" id="sync-meta">
@@ -590,8 +590,8 @@
 
     <div class="legend" aria-hidden="true">
       <span><i class="dot-dry"></i> Dry ≤20%</span>
-      <span><i class="dot-moist"></i> Moist 21–50%</span>
-      <span><i class="dot-optimal"></i> Optimal 51–80%</span>
+      <span><i class="dot-moist"></i> Moist ≤50%</span>
+      <span><i class="dot-optimal"></i> Optimal ≤80%</span>
       <span><i class="dot-soggy"></i> Soggy &gt;80%</span>
     </div>
 
@@ -852,7 +852,7 @@
           showState(
             "empty",
             "No readings yet",
-            "Your ESP32 hasn’t posted moisture data yet — or the database was wiped. Once it hits /api/moisture, day history and present hydration will appear here."
+            "No ESP32 readings yet — or the database was wiped. Once a sensor posts to /api/moisture, day history and present hydration will appear here."
           );
           setSync(true, "Database is empty");
           return;
@@ -882,7 +882,7 @@
         showState(
           "error",
           "Couldn’t reach the server",
-          "Check that uvicorn is running on this machine and that you’re on the same network."
+          "Check that uvicorn is running on the Pi and that this device is on the same Wi‑Fi."
         );
         setSync(false, err.message || "Connection failed");
       } finally {
