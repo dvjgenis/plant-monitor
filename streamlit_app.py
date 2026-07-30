@@ -460,6 +460,20 @@ def day_stats_html(day_df: pd.DataFrame) -> str:
     """
 
 
+def day_label(day, today=None) -> str:
+    """Human label for a calendar day in the day navigator."""
+    if today is None:
+        today = pd.Timestamp.now().date()
+    day = pd.Timestamp(day).date()
+    ts = pd.Timestamp(day)
+    pretty = ts.strftime("%b ") + str(ts.day) + ts.strftime(", %Y")
+    if day == today:
+        return f"Today · {pretty}"
+    if day == today - pd.Timedelta(days=1):
+        return f"Yesterday · {pretty}"
+    return f"{ts.strftime('%a')} · {pretty}"
+
+
 def portfolio_dashboard(df: pd.DataFrame) -> None:
     latest = latest_per_plant(df)
     last_updated = df["timestamp"].max().strftime("%Y-%m-%d %H:%M")
@@ -532,21 +546,65 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
         plant_id = plant_options[selected_name]
         plant_df = df[df["plant_id"] == plant_id]
 
-        min_day = plant_df["date"].min()
-        max_day = plant_df["date"].max()
-        picked = st.date_input(
-            "Day",
-            value=max_day,
-            min_value=min_day,
-            max_value=max_day,
-            label_visibility="collapsed",
+        available_days = sorted(
+            {pd.Timestamp(d).date() for d in plant_df["date"].dropna().unique()}
         )
+        if not available_days:
+            st.warning("No dated readings for this plant in the CSV snapshot.")
+            st.markdown("</div>", unsafe_allow_html=True)
+            return
+
+        today = pd.Timestamp.now().date()
+        day_key = f"day_select_{plant_id}"
+        if day_key not in st.session_state or st.session_state[day_key] not in available_days:
+            st.session_state[day_key] = available_days[-1]
+
+        day_idx = available_days.index(st.session_state[day_key])
+        prev_col, mid_col, next_col = st.columns([1, 4, 1], gap="small")
+        with prev_col:
+            if st.button(
+                "←",
+                disabled=day_idx <= 0,
+                use_container_width=True,
+                key=f"prev_day_{plant_id}",
+                help="Previous day with readings",
+            ):
+                st.session_state[day_key] = available_days[day_idx - 1]
+                st.rerun()
+        with mid_col:
+            st.selectbox(
+                "Day",
+                available_days,
+                format_func=lambda d: day_label(d, today),
+                label_visibility="collapsed",
+                key=day_key,
+            )
+        with next_col:
+            if st.button(
+                "→",
+                disabled=day_idx >= len(available_days) - 1,
+                use_container_width=True,
+                key=f"next_day_{plant_id}",
+                help="Next day with readings",
+            ):
+                st.session_state[day_key] = available_days[day_idx + 1]
+                st.rerun()
+
+        picked = st.session_state[day_key]
+        if len(available_days) == 1:
+            st.caption(
+                "Only one day in this CSV snapshot — sync more history from the Pi to browse other days."
+            )
+        else:
+            st.caption(
+                f"Day {day_idx + 1} of {len(available_days)} with readings · use ← → or the menu"
+            )
 
         day_df = plant_df[plant_df["date"] == picked].sort_values("timestamp")
         if day_df.empty:
             st.warning("No readings for this day in the CSV snapshot.")
         else:
-            st.caption(f"{selected_name} · {picked}")
+            st.caption(f"{selected_name} · {day_label(picked, today)}")
             st.markdown(day_stats_html(day_df), unsafe_allow_html=True)
             st.altair_chart(day_chart(day_df), use_container_width=True)
 
