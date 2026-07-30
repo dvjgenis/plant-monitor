@@ -9,10 +9,19 @@
 </p>
 
 <p align="center">
+  <a href="https://plant-monitor.streamlit.app/"><img alt="Live demo" src="https://img.shields.io/badge/Live%20demo-plant--monitor.streamlit.app-c45c3e?style=for-the-badge"></a>
+</p>
+
+<p align="center">
   <img alt="Python" src="https://img.shields.io/badge/Python-FastAPI-2d5a3d?style=flat-square">
   <img alt="ESP32" src="https://img.shields.io/badge/Hardware-ESP32-c4922a?style=flat-square">
   <img alt="Raspberry Pi" src="https://img.shields.io/badge/Host-Raspberry%20Pi-2d8a55?style=flat-square">
-  <img alt="Streamlit" src="https://img.shields.io/badge/Portfolio-Streamlit-c45c3e?style=flat-square">
+  <a href="https://plant-monitor.streamlit.app/"><img alt="Streamlit" src="https://img.shields.io/badge/Portfolio-Streamlit-c45c3e?style=flat-square"></a>
+</p>
+
+<p align="center">
+  <strong>Try the public portfolio:</strong>
+  <a href="https://plant-monitor.streamlit.app/">https://plant-monitor.streamlit.app/</a>
 </p>
 
 A full-stack IoT build that measures soil moisture at the plant, stores it on a Raspberry Pi, and shows it two ways: a **live dashboard at home**, and a **portfolio snapshot** anyone can open on Streamlit Cloud.
@@ -67,7 +76,7 @@ Plain-language definitions for terms used in this project:
 | **SQLite** | A file-based database on the Pi (`plants.db`) that stores every reading. |
 | **CSV** | A simple spreadsheet-style log (`readings.csv`) also written on the Pi and synced into GitHub for the portfolio. |
 | **PWA** (Progressive Web App) | A website that can be installed to the phone home screen and feels app-like. The live dashboard at `plant-pi.local:8000` is the PWA. |
-| **Streamlit** | A Python toolkit for data apps. Used here for the *public* portfolio view (not the live home monitor). |
+| **Streamlit** | A Python toolkit for data apps. Used here for the *public* portfolio view (not the live home monitor): [plant-monitor.streamlit.app](https://plant-monitor.streamlit.app/). |
 | **Time series** | Data indexed by time — moisture % over hours and days, plotted on a 00:00–24:00 axis. |
 | **Data analytics** | Exploring and summarizing those readings (averages, status bands, day charts) to understand plant hydration. |
 | **Data science** | Broader practice of asking questions with data — here: what does “healthy moisture” look like for each plant over time? |
@@ -84,10 +93,12 @@ Plain-language definitions for terms used in this project:
 | | Home PWA | Streamlit Cloud |
 |---|---|---|
 | Who | Dulf, on home Wi‑Fi | Visitors / recruiters |
-| Where | `http://plant-pi.local:8000` | Streamlit Cloud app |
+| Where | `http://plant-pi.local:8000` | **[plant-monitor.streamlit.app](https://plant-monitor.streamlit.app/)** |
 | Data | Live Pi SQLite + CSV | Committed `readings.csv` |
 | Updates | ~every 30s | After sync + `git push` |
 | Secrets | API key for POST/DELETE | None |
+
+**Open the public demo:** [https://plant-monitor.streamlit.app/](https://plant-monitor.streamlit.app/)
 
 The PWA is the monitoring tool. Streamlit is the curated demo of the same botanical UI — if the CSV isn’t re-synced after a wipe, the portfolio can look older than the live dashboard.
 
@@ -142,7 +153,9 @@ The PWA is the monitoring tool. Streamlit is the curated demo of the same botani
 2. Open **http://plant-pi.local:8000** on the same Wi‑Fi
 3. Safari → Share → **Add to Home Screen**
 
-**Portfolio snapshot**
+**Portfolio snapshot** — open anytime: [https://plant-monitor.streamlit.app/](https://plant-monitor.streamlit.app/)
+
+Refresh the data shown there from the Pi:
 
 ```bash
 ./scripts/sync-readings.sh
@@ -150,6 +163,8 @@ git add readings.csv && git commit -m "Update readings snapshot" && git push
 ```
 
 Streamlit Cloud redeploys from `streamlit_app.py` — no secrets.
+
+Local preview:
 
 ```bash
 pip install -r requirements.txt

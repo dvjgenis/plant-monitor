@@ -2,7 +2,7 @@
 
 Everything needed to run **Plant Hydration Hub** on a Raspberry Pi, keep the home PWA online, talk to the ESP32, and refresh the Streamlit portfolio snapshot.
 
-> **Portfolio vs home:** Streamlit Cloud reads committed `readings.csv`. The Pi PWA at `plant-pi.local:8000` is live. Details: [README.md](README.md).
+> **Portfolio vs home:** Live demo → [plant-monitor.streamlit.app](https://plant-monitor.streamlit.app/) (CSV snapshot). Home PWA → `plant-pi.local:8000`. Details: [README.md](README.md).
 
 ---
 
@@ -142,6 +142,8 @@ ssh admin@plant-pi.local "sudo systemctl restart plant-server.service"
 ---
 
 ## 7. Streamlit portfolio (CSV snapshot)
+
+**Live public URL:** [https://plant-monitor.streamlit.app/](https://plant-monitor.streamlit.app/)
 
 Streamlit does **not** call the Pi. It reads [readings.csv](readings.csv) from GitHub after a push.
 
