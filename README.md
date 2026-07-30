@@ -19,7 +19,7 @@ No Mac or Cursor needed for daily checks.
 
 ## Portfolio (Streamlit Cloud)
 
-Streamlit reads [readings.csv](readings.csv) from GitHub — not live, but good for a portfolio demo.
+Streamlit reads [readings.csv](readings.csv) from GitHub — a **snapshot** for your portfolio, not live. Layout matches the home PWA (Day history + Present hydration).
 
 1. Sync CSV from Pi: `./scripts/sync-readings.sh`
 2. Commit and push: `git add readings.csv && git commit -m "Update readings snapshot" && git push`

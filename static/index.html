@@ -229,7 +229,17 @@
       box-shadow: var(--shadow);
       animation: rise 0.55s ease 0.12s both;
       margin-bottom: 1.25rem;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
     }
+
+    .panel:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 22px 44px rgba(26, 46, 34, 0.1);
+      border-color: rgba(45, 90, 61, 0.22);
+    }
+
+    #day-panel { animation-delay: 0.1s; }
+    #now-panel { animation-delay: 0.18s; }
 
     .day-nav {
       display: flex;
@@ -346,6 +356,19 @@
     .chart-wrap {
       height: 260px;
       position: relative;
+      animation: chartFade 0.45s ease both;
+    }
+
+    @keyframes chartFade {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .pwa-hint {
+      margin: -0.5rem 0 1.25rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      animation: rise 0.55s ease 0.06s both;
     }
 
     .gauge-stack {
@@ -367,11 +390,14 @@
       font: inherit;
       color: inherit;
       text-align: left;
-      transition: border-color 0.15s ease, outline 0.15s ease;
+      transition: border-color 0.2s ease, outline 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      animation: rise 0.45s ease both;
     }
 
     .gauge-row:hover {
       border-color: rgba(45, 90, 61, 0.28);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(26, 46, 34, 0.06);
     }
 
     .gauge-row.active {
@@ -533,6 +559,7 @@
       <div class="brand-block">
         <h1>Plant Hydration Hub</h1>
         <p>Live soil moisture from your ESP32 sensors</p>
+        <p class="pwa-hint">On iPhone: open in Safari → Share → Add to Home Screen</p>
       </div>
       <div class="toolbar">
         <div class="sync-meta" id="sync-meta">
@@ -739,10 +766,30 @@
       );
       if (!ok) return;
 
+      let apiKey = sessionStorage.getItem("plantApiKey") || "";
+      if (!apiKey) {
+        apiKey = window.prompt(
+          "Enter the Pi API key (PLANT_API_KEY) to confirm wipe:"
+        ) || "";
+      }
+      if (!apiKey.trim()) {
+        alert("Wipe cancelled — API key is required.");
+        return;
+      }
+      apiKey = apiKey.trim();
+
       wipeBtn.disabled = true;
       try {
-        const res = await fetch("/api/readings", { method: "DELETE" });
-        if (!res.ok) throw new Error("Wipe failed");
+        const res = await fetch("/api/readings", {
+          method: "DELETE",
+          headers: { "X-API-Key": apiKey },
+        });
+        if (res.status === 401) {
+          sessionStorage.removeItem("plantApiKey");
+          throw new Error("Wrong API key (401)");
+        }
+        if (!res.ok) throw new Error(`Wipe failed (${res.status})`);
+        sessionStorage.setItem("plantApiKey", apiKey);
         const data = await res.json();
         selectedDay = localDateString(new Date());
         availableDays = [];
@@ -755,7 +802,11 @@
       } catch (err) {
         console.error(err);
         setSync(false, "Could not wipe data");
-        alert("Could not wipe data. Is the server running?");
+        alert(
+          err.message.includes("401")
+            ? "Wipe failed: wrong API key. Check the key in arduino.md / Pi systemd."
+            : "Could not wipe data. Is the server running?"
+        );
       } finally {
         wipeBtn.disabled = false;
       }
@@ -892,6 +943,9 @@
 
       chartWrap.hidden = false;
       dayEmpty.hidden = true;
+      chartWrap.style.animation = "none";
+      chartWrap.offsetHeight;
+      chartWrap.style.animation = "";
 
       hourList.innerHTML = [...history]
         .reverse()

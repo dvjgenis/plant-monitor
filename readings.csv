@@ -1,6 +1,2 @@
 timestamp,plant_id,plant_name,raw_value,moisture_percentage,status_category
-2026-07-29 22:11:11,1,Tradescantia Zebrina,2000,45.5,Moist
-2026-07-29 22:13:20,1,Tradescantia Zebrina,3167,5.0,Dry
-2026-07-29 22:29:12,1,Tradescantia Zebrina,1270,84.0,Soggy
-2026-07-29 22:30:00,1,Tradescantia Zebrina,1293,83.0,Soggy
-2026-07-29 22:45:00,1,Tradescantia Zebrina,1273,84.0,Soggy
+2026-07-29 23:15:00,1,Gynura Aurantiaca,2326,40.0,Moist
