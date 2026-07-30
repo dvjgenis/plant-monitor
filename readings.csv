@@ -22,3 +22,7 @@ timestamp,plant_id,plant_name,raw_value,moisture_percentage,status_category
 2026-07-30 10:00:01,1,Gynura Aurantiaca,1317,82.0,Soggy
 2026-07-30 10:30:00,1,Gynura Aurantiaca,1309,82.0,Soggy
 2026-07-30 11:00:00,1,Gynura Aurantiaca,1301,83.0,Soggy
+2026-07-30 11:30:01,1,Gynura Aurantiaca,1329,82.0,Soggy
+2026-07-30 12:00:01,1,Gynura Aurantiaca,1296,83.0,Soggy
+2026-07-30 12:30:01,1,Gynura Aurantiaca,1309,82.0,Soggy
+2026-07-30 13:00:01,1,Gynura Aurantiaca,1319,82.0,Soggy
