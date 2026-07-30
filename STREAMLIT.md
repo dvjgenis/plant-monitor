@@ -11,7 +11,14 @@ ESP32  →  Pi FastAPI (LAN)  ←  Cloudflare Tunnel  ←  Streamlit Cloud  ← 
 - **Home LAN:** ESP32 posts to `http://10.0.0.43:8000/api/moisture`
 - **Anywhere:** Streamlit app calls `https://your-tunnel-host/api/plants` with an API key
 
-## 1. Generate an API key
+## Security note
+
+When `PLANT_API_KEY` is set:
+
+- **GET** `/api/plants`, history, etc. stay open (home dashboard + Streamlit reads)
+- **POST** `/api/moisture` and **DELETE** `/api/readings` require header `X-API-Key`
+
+ESP32 must still send the key. Streamlit can send it too (harmless on GET).
 
 On your Mac:
 

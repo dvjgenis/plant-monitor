@@ -31,7 +31,7 @@ See [STREAMLIT.md](STREAMLIT.md) for Cloudflare Tunnel + Streamlit Cloud + API k
 
 ## API
 
-All `/api/*` routes require header `X-API-Key` when `PLANT_API_KEY` is set on the server.
+All `/api/*` **write** routes (POST, DELETE) require header `X-API-Key` when `PLANT_API_KEY` is set on the server. **GET** routes stay open so the home dashboard works.
 
 - `GET /api/plants` — latest reading per plant
 - `GET /api/plants/{id}/history?day=YYYY-MM-DD` — day history

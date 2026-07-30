@@ -143,10 +143,20 @@ sync_csv_from_db()
 
 
 class ApiKeyMiddleware(BaseHTTPMiddleware):
-    """Require X-API-Key on /api/* when PLANT_API_KEY is set."""
+    """Require X-API-Key on mutating /api/* routes when PLANT_API_KEY is set.
+
+    GET stays open so the home dashboard (plant-pi.local) works without a key.
+    POST/DELETE still need the key so random internet clients cannot spam or wipe.
+    """
+
+    MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
 
     async def dispatch(self, request: Request, call_next):
-        if PLANT_API_KEY and request.url.path.startswith("/api/"):
+        if (
+            PLANT_API_KEY
+            and request.url.path.startswith("/api/")
+            and request.method.upper() in self.MUTATING
+        ):
             provided = request.headers.get("X-API-Key", "")
             if provided != PLANT_API_KEY:
                 return JSONResponse(
