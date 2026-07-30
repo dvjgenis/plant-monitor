@@ -1,17 +1,32 @@
 """Portfolio plant dashboard — reads readings.csv committed to the repo."""
 
-from datetime import date
+import html
 from pathlib import Path
 
 import altair as alt
 import pandas as pd
 import streamlit as st
+from pandas.errors import EmptyDataError
 
 CSV_PATH = Path(__file__).parent / "readings.csv"
+REQUIRED_COLUMNS = {
+    "timestamp",
+    "plant_id",
+    "moisture_percentage",
+    "status_category",
+}
 
 PLANT_NAMES = {
     1: "Gynura Aurantiaca",
     2: "Plant #2",
+}
+
+STATUS_COLORS = {
+    "Dry": "#c45c3e",
+    "Moist": "#c4922a",
+    "Optimal": "#2d8a55",
+    "Soggy": "#2a7a8a",
+    "Unknown": "#5a7262",
 }
 
 BADGE_STYLES = {
@@ -71,7 +86,12 @@ h1 {
   border-radius: 14px;
   padding: 0.75rem 0.85rem;
   background: rgba(255, 252, 247, 0.65);
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.35rem;
+}
+
+.gauge-card.selected {
+  border-color: #2d5a3d;
+  box-shadow: 0 0 0 2px rgba(196, 224, 122, 0.55);
 }
 
 .gauge-top {
@@ -132,10 +152,65 @@ h1 {
   background: rgba(255, 252, 247, 0.55);
 }
 
-.snapshot-note {
-  font-size: 0.82rem;
+.intro {
+  margin: 0.35rem 0 1.1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(45, 90, 61, 0.14);
+  background: rgba(255, 252, 247, 0.72);
+}
+
+.intro .byline {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #2d5a3d;
+  margin: 0 0 0.35rem;
+}
+
+.intro p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
   color: #5a7262;
-  margin-bottom: 1rem;
+}
+
+.snapshot-note {
+  font-size: 0.78rem;
+  color: #5a7262;
+  margin: 0 0 1rem;
+}
+
+.day-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin: 0.35rem 0 0.85rem;
+}
+
+.day-stat {
+  background: rgba(255, 252, 247, 0.65);
+  border: 1px solid rgba(45, 90, 61, 0.12);
+  border-radius: 12px;
+  padding: 0.55rem 0.6rem;
+  text-align: center;
+}
+
+.day-stat .label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a7262;
+  margin-bottom: 0.15rem;
+}
+
+.day-stat .value {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1a2e22;
 }
 </style>
 """
@@ -146,7 +221,10 @@ def inject_styles() -> None:
 
 
 def display_name(row: pd.Series) -> str:
-    pid = int(row["plant_id"])
+    raw_pid = row.get("plant_id")
+    if pd.isna(raw_pid):
+        return "Unknown plant"
+    pid = int(raw_pid)
     return PLANT_NAMES.get(pid, row.get("plant_name") or f"Plant #{pid}")
 
 
@@ -155,13 +233,44 @@ def load_readings() -> pd.DataFrame:
         st.error("`readings.csv` not found in the repo.")
         st.stop()
 
-    df = pd.read_csv(CSV_PATH)
-    if df.empty:
-        st.info("No readings in the CSV yet. Run `./scripts/sync-readings.sh` after the Pi collects data.")
+    if CSV_PATH.stat().st_size == 0:
+        st.info(
+            "The CSV file is empty. Run `./scripts/sync-readings.sh` after the Pi collects data."
+        )
         st.stop()
 
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-    df["moisture_percentage"] = pd.to_numeric(df["moisture_percentage"])
+    try:
+        df = pd.read_csv(CSV_PATH)
+    except EmptyDataError:
+        st.info(
+            "The CSV has no readable rows yet. Run `./scripts/sync-readings.sh` after the Pi collects data."
+        )
+        st.stop()
+
+    if df.empty:
+        st.info(
+            "No readings in the CSV yet. Run `./scripts/sync-readings.sh` after the Pi collects data."
+        )
+        st.stop()
+
+    missing = REQUIRED_COLUMNS - set(df.columns)
+    if missing:
+        st.error(f"`readings.csv` is missing columns: {', '.join(sorted(missing))}")
+        st.stop()
+
+    df = df.dropna(subset=["plant_id", "timestamp", "moisture_percentage"])
+    if df.empty:
+        st.warning("No valid rows in the CSV after filtering bad data.")
+        st.stop()
+
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df = df.dropna(subset=["timestamp"])
+    if df.empty:
+        st.warning("All timestamps in the CSV were invalid.")
+        st.stop()
+
+    df["moisture_percentage"] = pd.to_numeric(df["moisture_percentage"], errors="coerce")
+    df = df.dropna(subset=["moisture_percentage"])
     df["plant_id"] = pd.to_numeric(df["plant_id"], downcast="integer")
     df["plant_name"] = df.apply(display_name, axis=1)
     df["date"] = df["timestamp"].dt.date
@@ -184,8 +293,9 @@ def latest_per_plant(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def badge_html(category: str) -> str:
+    safe = html.escape(str(category))
     fg, bg = BADGE_STYLES.get(category, BADGE_STYLES["Unknown"])
-    return f'<span class="badge" style="color:{fg};background:{bg}">{category}</span>'
+    return f'<span class="badge" style="color:{fg};background:{bg}">{safe}</span>'
 
 
 def bar_gradient(category: str) -> str:
@@ -198,15 +308,18 @@ def bar_gradient(category: str) -> str:
     return colors.get(category, colors["Dry"])
 
 
-def render_gauge_card(row: pd.Series) -> None:
+def render_gauge_card(row: pd.Series, selected: bool = False) -> None:
     pct = float(row["moisture_percentage"])
     category = row.get("status_category", "Unknown")
     width = min(max(pct, 0), 100)
+    selected_cls = " selected" if selected else ""
+    name = html.escape(str(row["plant_name"]))
+    time_label = html.escape(str(row["time_of_day"]))
     st.markdown(
         f"""
-        <div class="gauge-card">
+        <div class="gauge-card{selected_cls}">
           <div class="gauge-top">
-            <span class="gauge-name">{row['plant_name']}</span>
+            <span class="gauge-name">{name}</span>
             <span class="gauge-pct">{pct:.1f}%</span>
           </div>
           <div class="gauge-bar">
@@ -214,7 +327,7 @@ def render_gauge_card(row: pd.Series) -> None:
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
             {badge_html(category)}
-            <span style="font-size:0.72rem;color:#5a7262;">Updated {row['time_of_day']}</span>
+            <span style="font-size:0.72rem;color:#5a7262;">Updated {time_label}</span>
           </div>
         </div>
         """,
@@ -223,9 +336,18 @@ def render_gauge_card(row: pd.Series) -> None:
 
 
 def day_chart(day_df: pd.DataFrame) -> alt.Chart:
-    chart = (
+    """Layered Altair chart: band guides, area, line, status-colored points, hover + zoom."""
+    nearest = alt.selection_point(
+        nearest=True,
+        on="pointerover",
+        fields=["hour_fraction"],
+        empty=False,
+    )
+    zoom = alt.selection_interval(bind="scales", encodings=["x"])
+
+    base = (
         alt.Chart(day_df)
-        .mark_line(point=True, color="#2d5a3d", strokeWidth=2.5)
+        .add_params(zoom)
         .encode(
             x=alt.X(
                 "hour_fraction:Q",
@@ -241,27 +363,108 @@ def day_chart(day_df: pd.DataFrame) -> alt.Chart:
                 title="Moisture %",
                 scale=alt.Scale(domain=[0, 100]),
             ),
+        )
+    )
+
+    band_rules = (
+        alt.Chart(pd.DataFrame({"y": [20, 50, 80]}))
+        .mark_rule(strokeDash=[4, 4], strokeWidth=1, color="rgba(45, 90, 61, 0.28)")
+        .encode(y="y:Q")
+    )
+
+    area = base.mark_area(opacity=0.14, color="#2d8a55", line=False)
+    line = base.mark_line(color="#2d5a3d", strokeWidth=2.5)
+
+    points = (
+        base.mark_circle(size=70)
+        .encode(
+            color=alt.Color(
+                "status_category:N",
+                scale=alt.Scale(
+                    domain=list(STATUS_COLORS.keys()),
+                    range=list(STATUS_COLORS.values()),
+                ),
+                legend=alt.Legend(title="Status", orient="bottom"),
+            ),
+            size=alt.condition(nearest, alt.value(140), alt.value(70)),
             tooltip=[
                 alt.Tooltip("time_of_day:N", title="Time"),
                 alt.Tooltip("moisture_percentage:Q", title="Moisture %", format=".1f"),
                 alt.Tooltip("status_category:N", title="Status"),
             ],
         )
-        .properties(height=260)
-        .configure_view(strokeWidth=0)
-        .configure_axis(gridColor="rgba(45, 90, 61, 0.1)", labelColor="#5a7262", titleColor="#5a7262")
+        .add_params(nearest)
     )
-    return chart
+
+    mean_y = float(day_df["moisture_percentage"].mean())
+    mean_rule = (
+        alt.Chart(pd.DataFrame({"y": [mean_y]}))
+        .mark_rule(color="#2d5a3d", strokeWidth=1.5, strokeDash=[6, 4], opacity=0.55)
+        .encode(y="y:Q")
+    )
+
+    hover_rule = (
+        base.transform_filter(nearest)
+        .mark_rule(color="#5a7262", strokeWidth=1, opacity=0.45)
+        .encode(x="hour_fraction:Q")
+    )
+
+    return (
+        alt.layer(band_rules, area, line, mean_rule, hover_rule, points)
+        .properties(height=280)
+        .configure_view(strokeWidth=0)
+        .configure_axis(
+            gridColor="rgba(45, 90, 61, 0.1)",
+            labelColor="#5a7262",
+            titleColor="#5a7262",
+        )
+        .configure_legend(
+            labelFont="Manrope",
+            titleFont="Manrope",
+            labelColor="#5a7262",
+            titleColor="#5a7262",
+        )
+    )
+
+
+def day_stats_html(day_df: pd.DataFrame) -> str:
+    avg = day_df["moisture_percentage"].mean()
+    lo = day_df["moisture_percentage"].min()
+    hi = day_df["moisture_percentage"].max()
+    n = len(day_df)
+    return f"""
+    <div class="day-stats">
+      <div class="day-stat"><span class="label">Avg</span><span class="value">{avg:.1f}%</span></div>
+      <div class="day-stat"><span class="label">Low</span><span class="value">{lo:.1f}%</span></div>
+      <div class="day-stat"><span class="label">High</span><span class="value">{hi:.1f}%</span></div>
+      <div class="day-stat"><span class="label">Reads</span><span class="value">{n}</span></div>
+    </div>
+    """
 
 
 def portfolio_dashboard(df: pd.DataFrame) -> None:
     latest = latest_per_plant(df)
     last_updated = df["timestamp"].max().strftime("%Y-%m-%d %H:%M")
+    plant_options = dict(zip(latest["plant_name"], latest["plant_id"]))
+    names = list(plant_options.keys())
+
+    if "selected_plant" not in st.session_state:
+        st.session_state.selected_plant = names[0]
+    if st.session_state.selected_plant not in names:
+        st.session_state.selected_plant = names[0]
 
     st.markdown(
-        f'<p class="snapshot-note">Portfolio snapshot as of <strong>{last_updated}</strong> '
-        f"(from last git push). For live data at home, use the Pi PWA at "
-        f"<code>plant-pi.local:8000</code>.</p>",
+        f"""
+        <div class="intro">
+          <p class="byline">Dulf’s Plant Hydration Hub</p>
+          <p>
+            A personal IoT build: ESP32 soil probes post moisture to a Raspberry Pi,
+            which powers a live home PWA. This page is the <strong>public portfolio view</strong> —
+            a curated CSV snapshot of real readings (last synced
+            <strong>{last_updated}</strong>), not a live feed.
+          </p>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -269,8 +472,8 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
         """
         <div class="legend">
           <span>Dry ≤20%</span>
-          <span>Moist 21–50%</span>
-          <span>Optimal 51–80%</span>
+          <span>Moist ≤50%</span>
+          <span>Optimal ≤80%</span>
           <span>Soggy &gt;80%</span>
         </div>
         """,
@@ -279,30 +482,32 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
 
     left, right = st.columns([1.55, 0.85], gap="medium")
 
-    plant_options = dict(zip(latest["plant_name"], latest["plant_id"]))
-
     with right:
         st.markdown(
             '<div class="panel"><h3>Present hydration</h3>'
-            '<div class="sub">Latest reading per plant</div>',
+            '<div class="sub">Select a plant to drive the day chart</div>',
             unsafe_allow_html=True,
         )
+        picked_plant = st.radio(
+            "Plant",
+            names,
+            index=names.index(st.session_state.selected_plant),
+            label_visibility="collapsed",
+            key="plant_radio",
+        )
+        st.session_state.selected_plant = picked_plant
         for _, row in latest.iterrows():
-            render_gauge_card(row)
+            render_gauge_card(row, selected=(row["plant_name"] == picked_plant))
         st.markdown("</div>", unsafe_allow_html=True)
 
     with left:
         st.markdown(
             '<div class="panel"><h3>Day history</h3>'
-            '<div class="sub">Hourly moisture for selected day</div>',
+            '<div class="sub">Hover points · drag horizontally to zoom hours</div>',
             unsafe_allow_html=True,
         )
 
-        selected_name = st.selectbox(
-            "Plant",
-            list(plant_options.keys()),
-            label_visibility="collapsed",
-        )
+        selected_name = st.session_state.selected_plant
         plant_id = plant_options[selected_name]
         plant_df = df[df["plant_id"] == plant_id]
 
@@ -320,24 +525,41 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
         if day_df.empty:
             st.warning("No readings for this day in the CSV snapshot.")
         else:
-            st.caption(f"{selected_name} · {len(day_df)} reading(s)")
+            st.caption(f"{selected_name} · {picked}")
+            st.markdown(day_stats_html(day_df), unsafe_allow_html=True)
             st.altair_chart(day_chart(day_df), use_container_width=True)
-            table = day_df[["time_of_day", "moisture_percentage", "status_category"]].copy()
+
+            table = day_df[
+                ["time_of_day", "moisture_percentage", "status_category"]
+            ].copy()
             table.columns = ["Time", "Moisture %", "Status"]
-            st.dataframe(table.iloc[::-1], use_container_width=True, hide_index=True)
+            st.dataframe(
+                table.iloc[::-1],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Moisture %": st.column_config.ProgressColumn(
+                        "Moisture %",
+                        format="%.1f%%",
+                        min_value=0,
+                        max_value=100,
+                    ),
+                    "Status": st.column_config.TextColumn("Status"),
+                },
+            )
 
         st.markdown("</div>", unsafe_allow_html=True)
 
 
 def main() -> None:
     st.set_page_config(
-        page_title="Plant Hydration Hub",
+        page_title="Dulf’s Plant Hydration Hub",
         page_icon="🪴",
         layout="centered",
     )
     inject_styles()
     st.title("Plant Hydration Hub")
-    st.caption("Portfolio view · ESP32 soil moisture project")
+    st.caption("Built by Dulf · ESP32 · Raspberry Pi · Streamlit portfolio")
 
     df = load_readings()
     portfolio_dashboard(df)

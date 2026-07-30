@@ -1,8 +1,10 @@
 from contextlib import contextmanager
 from datetime import date, datetime
 import csv
+import logging
 import os
 import re
+import secrets
 import sqlite3
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -12,6 +14,8 @@ from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 
 app = FastAPI(title="Plant Hydration Hub")
+
+logger = logging.getLogger("plant-monitor")
 
 DB_NAME = "plants.db"
 CSV_NAME = "readings.csv"
@@ -113,6 +117,28 @@ def reset_csv_file():
         csv.DictWriter(f, fieldnames=CSV_HEADERS).writeheader()
 
 
+def rebuild_csv_from_db() -> None:
+    """Rewrite readings.csv from SQLite (repairs desync after failed append)."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT plant_id, raw_value, moisture_percentage, status_category, timestamp
+            FROM readings
+            ORDER BY id ASC
+            """
+        ).fetchall()
+
+    reset_csv_file()
+    for row in rows:
+        append_csv_reading(
+            timestamp=row["timestamp"],
+            plant_id=row["plant_id"],
+            raw_value=row["raw_value"],
+            moisture_percentage=row["moisture_percentage"],
+            status_category=row["status_category"],
+        )
+
+
 def sync_csv_from_db():
     """If CSV is missing/empty, export everything currently in SQLite."""
     if os.path.exists(CSV_NAME) and os.path.getsize(CSV_NAME) > 0:
@@ -158,7 +184,7 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
             and request.method.upper() in self.MUTATING
         ):
             provided = request.headers.get("X-API-Key", "")
-            if provided != PLANT_API_KEY:
+            if not secrets.compare_digest(provided, PLANT_API_KEY):
                 return JSONResponse(
                     status_code=401,
                     content={"detail": "Invalid or missing API key"},
@@ -192,14 +218,37 @@ def parse_day(value: str | None) -> str:
     return value
 
 
+def parse_timestamp(ts: str) -> datetime:
+    """Parse SQLite / ISO timestamps without raising on minor format drift."""
+    text = (ts or "").strip()
+    if not text:
+        return datetime.now()
+
+    normalized = text.replace("Z", "").split("+")[0].strip()
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        pass
+
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+
+    logger.warning("Could not parse timestamp %r; using now()", text)
+    return datetime.now()
+
+
 def format_timestamp(ts: str) -> dict:
     """Parse SQLite timestamp into display fields for the UI."""
-    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+    dt = parse_timestamp(ts)
+    canonical = dt.strftime("%Y-%m-%d %H:%M:%S")
     return {
         "time_of_day": dt.strftime("%H:%M"),
         "hour_label": dt.strftime("%H:00"),
         "hour_fraction": dt.hour + dt.minute / 60.0 + dt.second / 3600.0,
-        "full_timestamp": ts,
+        "full_timestamp": canonical,
         "iso_timestamp": dt.isoformat(),
         "date": dt.date().isoformat(),
     }
@@ -262,13 +311,17 @@ def receive_moisture(data: SensorData):
             ),
         )
 
-    append_csv_reading(
-        timestamp=local_ts,
-        plant_id=data.plant_id,
-        raw_value=data.raw_value,
-        moisture_percentage=data.moisture_percentage,
-        status_category=category,
-    )
+    try:
+        append_csv_reading(
+            timestamp=local_ts,
+            plant_id=data.plant_id,
+            raw_value=data.raw_value,
+            moisture_percentage=data.moisture_percentage,
+            status_category=category,
+        )
+    except OSError as exc:
+        logger.error("CSV append failed; rebuilding from DB: %s", exc)
+        rebuild_csv_from_db()
 
     now = datetime.now().strftime("%H:%M")
     print(
@@ -276,30 +329,6 @@ def receive_moisture(data: SensorData):
         f"{data.moisture_percentage:.1f}% ({category})"
     )
     return {"status": "success", "category": category}
-
-
-@app.get("/api/plants/{plant_id}/days")
-def list_plant_days(plant_id: int):
-    """Dates that have at least one reading, newest first."""
-    with get_db() as conn:
-        rows = conn.execute(
-            """
-            SELECT date(timestamp) AS day, COUNT(*) AS reading_count
-            FROM readings
-            WHERE plant_id = ?
-            GROUP BY date(timestamp)
-            ORDER BY day DESC
-            """,
-            (plant_id,),
-        ).fetchall()
-
-    return {
-        "plant_id": plant_id,
-        "today": date.today().isoformat(),
-        "days": [
-            {"date": row["day"], "reading_count": row["reading_count"]} for row in rows
-        ],
-    }
 
 
 @app.get("/api/plants/{plant_id}/history")

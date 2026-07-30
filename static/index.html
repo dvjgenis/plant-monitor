@@ -468,6 +468,20 @@
       background: rgba(255, 252, 247, 0.65);
       border: 1px solid var(--line);
       font-size: 0.85rem;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+    }
+
+    .hour-list li:hover {
+      border-color: rgba(45, 90, 61, 0.28);
+      transform: translateX(2px);
+    }
+
+    .hour-list li.active {
+      border-color: var(--brand);
+      background: rgba(196, 224, 122, 0.22);
+      outline: 2px solid rgba(196, 224, 122, 0.55);
+      outline-offset: 1px;
     }
 
     .hour-list .time {
@@ -626,6 +640,8 @@
     let chartInstance = null;
     let selectedPlantId = 1;
     let selectedDay = localDateString(new Date());
+    let selectedChartIndex = -1;
+    let lastHistoryFingerprint = "";
     let availableDays = [];
     let pollTimer = null;
 
@@ -921,6 +937,32 @@
       return `${String(hour).padStart(2, "0")}:00`;
     }
 
+    function historyFingerprint(history) {
+      return history
+        .map((item) => `${item.time_of_day}:${item.moisture_percentage}:${item.status_category}`)
+        .join("|");
+    }
+
+    function statusColor(category) {
+      const map = {
+        Dry: "#c45c3e",
+        Moist: "#c4922a",
+        Optimal: "#2d8a55",
+        Soggy: "#2a7a8a",
+      };
+      return map[category] || "#2d8a55";
+    }
+
+    function highlightReading(chartIndex) {
+      selectedChartIndex = chartIndex;
+      hourList.querySelectorAll("li").forEach((li) => {
+        li.classList.toggle("active", Number(li.dataset.chartIndex) === chartIndex);
+      });
+      if (!chartInstance || chartIndex < 0) return;
+      chartInstance.setActiveElements([{ datasetIndex: 0, index: chartIndex }]);
+      chartInstance.update("none");
+    }
+
     function renderDayView(historyData) {
       const history = historyData.history || [];
       const name = historyData.name || `Plant #${historyData.plant_id}`;
@@ -934,6 +976,8 @@
         chartWrap.hidden = true;
         dayEmpty.hidden = false;
         hourList.innerHTML = "";
+        selectedChartIndex = -1;
+        lastHistoryFingerprint = "";
         if (chartInstance) {
           chartInstance.destroy();
           chartInstance = null;
@@ -941,27 +985,64 @@
         return;
       }
 
+      const fingerprint = historyFingerprint(history);
+      const unchanged = fingerprint === lastHistoryFingerprint && chartInstance;
+
       chartWrap.hidden = false;
       dayEmpty.hidden = true;
-      chartWrap.style.animation = "none";
-      chartWrap.offsetHeight;
-      chartWrap.style.animation = "";
 
-      hourList.innerHTML = [...history]
-        .reverse()
-        .map((item) => `
-          <li>
+      const reversed = [...history].reverse();
+      hourList.innerHTML = reversed
+        .map((item, revIdx) => {
+          const chartIndex = history.length - 1 - revIdx;
+          const active = chartIndex === selectedChartIndex ? "active" : "";
+          return `
+          <li data-chart-index="${chartIndex}" class="${active}" role="button" tabindex="0">
             <span class="time">${item.time_of_day}</span>
             <span class="badge ${item.status_category}">${item.status_category}</span>
             <span class="pct">${Number(item.moisture_percentage).toFixed(1)}%</span>
           </li>
-        `)
+        `;
+        })
         .join("");
+
+      hourList.querySelectorAll("li").forEach((li) => {
+        const activate = () => highlightReading(Number(li.dataset.chartIndex));
+        li.addEventListener("click", activate);
+        li.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            activate();
+          }
+        });
+      });
+
+      if (unchanged) {
+        if (selectedChartIndex >= 0 && selectedChartIndex < history.length) {
+          highlightReading(selectedChartIndex);
+        }
+        return;
+      }
+
+      lastHistoryFingerprint = fingerprint;
+      chartWrap.style.animation = "none";
+      chartWrap.offsetHeight;
+      chartWrap.style.animation = "";
+
+      if (typeof Chart === "undefined") {
+        chartWrap.hidden = true;
+        dayEmpty.hidden = false;
+        dayEmpty.textContent =
+          "Chart library failed to load. Check the network connection and refresh.";
+        return;
+      }
 
       const points = history.map((item) => ({
         x: hourFraction(item),
         y: item.moisture_percentage,
+        category: item.status_category || "Unknown",
       }));
+      const pointColors = points.map((p) => statusColor(p.category));
       const ctx = document.getElementById("moistureChart").getContext("2d");
 
       if (chartInstance) chartInstance.destroy();
@@ -969,6 +1050,26 @@
       const gradient = ctx.createLinearGradient(0, 0, 0, 240);
       gradient.addColorStop(0, "rgba(45, 138, 85, 0.28)");
       gradient.addColorStop(1, "rgba(45, 138, 85, 0.02)");
+
+      const bandLines = {
+        id: "moistureBands",
+        afterDraw(chart) {
+          const { ctx: c, chartArea, scales } = chart;
+          if (!chartArea || !scales.y) return;
+          c.save();
+          c.setLineDash([4, 4]);
+          c.strokeStyle = "rgba(45, 90, 61, 0.28)";
+          c.lineWidth = 1;
+          for (const yVal of [20, 50, 80]) {
+            const y = scales.y.getPixelForValue(yVal);
+            c.beginPath();
+            c.moveTo(chartArea.left, y);
+            c.lineTo(chartArea.right, y);
+            c.stroke();
+          }
+          c.restore();
+        },
+      };
 
       chartInstance = new Chart(ctx, {
         type: "line",
@@ -981,9 +1082,9 @@
             fill: true,
             tension: 0.35,
             borderWidth: 2.5,
-            pointRadius: history.length > 40 ? 2 : 4,
-            pointHoverRadius: 6,
-            pointBackgroundColor: "#2d8a55",
+            pointRadius: history.length > 40 ? 3 : 5,
+            pointHoverRadius: 8,
+            pointBackgroundColor: pointColors,
             pointBorderColor: "#fffbf5",
             pointBorderWidth: 2,
           }],
@@ -993,6 +1094,9 @@
           maintainAspectRatio: false,
           parsing: false,
           interaction: { mode: "nearest", intersect: false, axis: "x" },
+          onClick(_evt, elements) {
+            if (elements.length) highlightReading(elements[0].index);
+          },
           scales: {
             y: {
               min: 0,
@@ -1046,12 +1150,20 @@
                   const m = Math.round((x - h) * 60);
                   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
                 },
-                label: (ctx) => ` ${ctx.parsed.y.toFixed(1)}% moisture`,
+                label: (ctx) => {
+                  const cat = points[ctx.dataIndex]?.category || "";
+                  return ` ${ctx.parsed.y.toFixed(1)}% · ${cat}`;
+                },
               },
             },
           },
         },
+        plugins: [bandLines],
       });
+
+      if (selectedChartIndex >= 0 && selectedChartIndex < history.length) {
+        highlightReading(selectedChartIndex);
+      }
     }
 
     loadDashboard();

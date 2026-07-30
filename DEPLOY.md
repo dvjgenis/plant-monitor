@@ -1,31 +1,39 @@
-# Deploy plant-monitor to Raspberry Pi
+# Deploy & operations
 
-Deploy the **current Mac project** to the Pi. Do not paste the outdated tutorial snippets — use these files.
+Everything needed to run **Plant Hydration Hub** on a Raspberry Pi, keep the home PWA online, talk to the ESP32, and refresh the Streamlit portfolio snapshot.
+
+> **Portfolio vs home:** Streamlit Cloud reads committed `readings.csv`. The Pi PWA at `plant-pi.local:8000` is live. Details: [README.md](README.md).
+
+---
 
 ## Prerequisites
 
-- Pi reachable via SSH: `ssh admin@plant-pi.local`
-- SSH key auth configured (see Raspberry Pi Imager)
-- Step 1 on Pi already done:
+- Pi reachable: `ssh admin@plant-pi.local`
+- SSH key auth configured (Raspberry Pi Imager)
+- On the Pi (once):
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install python3-pip python3-venv git -y
 ```
 
-## 1. Copy files from Mac
+---
 
-On your Mac (not inside SSH):
+## 1. Copy project files from Mac
+
+On the Mac (not inside SSH):
 
 ```bash
 cd ~/Desktop/plant-monitor
-scp main.py requirements.txt admin@plant-pi.local:~/plant-monitor/
+scp main.py requirements-pi.txt admin@plant-pi.local:~/plant-monitor/
 scp static/index.html static/manifest.json static/icon.svg admin@plant-pi.local:~/plant-monitor/static/
 ```
 
-Do **not** copy `venv/`, `plants.db`, `readings.csv`, or `__pycache__`.
+Do **not** copy `venv/`, `plants.db`, local `readings.csv`, or `__pycache__`. Live data lives on the Pi.
 
-## 2. Python environment on Pi
+---
+
+## 2. Python environment on the Pi
 
 ```bash
 ssh admin@plant-pi.local
@@ -34,8 +42,10 @@ cd ~/plant-monitor
 python3 -m venv venv
 source venv/bin/activate
 pip install -U pip
-pip install -r requirements.txt
+pip install -r requirements-pi.txt
 ```
+
+> `requirements.txt` is for **Streamlit Cloud / Mac preview** only. The Pi uses `requirements-pi.txt` (FastAPI stack).
 
 Smoke test:
 
@@ -45,13 +55,13 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 
 Visit `http://plant-pi.local:8000`, then `Ctrl+C`.
 
+---
+
 ## 3. systemd (24/7 service)
 
 ```bash
 sudo nano /etc/systemd/system/plant-server.service
 ```
-
-Paste:
 
 ```ini
 [Unit]
@@ -69,7 +79,7 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-Enable and start:
+Generate a key once (example): `openssl rand -hex 24`
 
 ```bash
 sudo systemctl daemon-reload
@@ -78,11 +88,13 @@ sudo systemctl start plant-server.service
 sudo systemctl status plant-server.service
 ```
 
-Logs: `journalctl -u plant-server.service -f`
+Follow logs: `journalctl -u plant-server.service -f`
 
-For remote Streamlit access, set `PLANT_API_KEY` and expose the API via Cloudflare Tunnel — see [STREAMLIT.md](STREAMLIT.md).
+The same key must appear in the ESP32 sketch (`X-API-Key`) and in wipe prompts on the PWA. Keep it in local `arduino.md` (gitignored) — never commit it.
 
-## 4. ESP32 endpoint
+---
+
+## 4. ESP32 → Pi endpoint
 
 On the Pi:
 
@@ -90,18 +102,23 @@ On the Pi:
 hostname -I
 ```
 
-Update `serverName` in [arduino.md](arduino.md) (Sketch B):
+Point the sketch at that LAN IP (example):
 
 ```cpp
 const char* serverName = "http://10.0.0.43:8000/api/moisture";
 ```
 
-Upload to the ESP32 from Arduino IDE.
+Upload from Arduino IDE over USB. After upload, the ESP32 can run from wall power on the same Wi‑Fi. Interval changes require USB again.
 
-## 5. Verify
+Firmware reference: local `arduino.md` (gitignored).
 
-- Dashboard: `http://plant-pi.local:8000` or `http://10.0.0.43:8000`
-- Test POST from Mac:
+---
+
+## 5. Verify the live stack
+
+- Dashboard: `http://plant-pi.local:8000` or `http://<pi-ip>:8000`
+- Phone: Safari → Share → Add to Home Screen
+- Test ingest from Mac:
 
 ```bash
 curl -X POST http://plant-pi.local:8000/api/moisture \
@@ -112,12 +129,64 @@ curl -X POST http://plant-pi.local:8000/api/moisture \
 
 - CSV grows at `~/plant-monitor/readings.csv` on the Pi
 
-## Updating after code changes
+---
 
-Re-copy files from Mac, then restart the service:
+## 6. Update code after changes
 
 ```bash
-scp main.py requirements.txt admin@plant-pi.local:~/plant-monitor/
+scp main.py requirements-pi.txt admin@plant-pi.local:~/plant-monitor/
 scp static/index.html static/manifest.json static/icon.svg admin@plant-pi.local:~/plant-monitor/static/
 ssh admin@plant-pi.local "sudo systemctl restart plant-server.service"
 ```
+
+---
+
+## 7. Streamlit portfolio (CSV snapshot)
+
+Streamlit does **not** call the Pi. It reads [readings.csv](readings.csv) from GitHub after a push.
+
+### First-time Streamlit Cloud
+
+1. Repo on GitHub (e.g. `dvjgenis/plant-monitor`)
+2. [share.streamlit.io](https://share.streamlit.io) → **Create app**
+3. Main file: `streamlit_app.py`
+4. **No secrets** required
+5. Deploy
+
+### Refresh portfolio data from Mac
+
+```bash
+./scripts/sync-readings.sh
+git add readings.csv
+git commit -m "Update readings snapshot"
+git push
+```
+
+Cloud redeploys on push (or **Reboot app** in the Streamlit dashboard).
+
+### Local preview
+
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+---
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|--------|
+| PWA blank / offline | `systemctl status plant-server` · same Wi‑Fi · `plant-pi.local` vs IP |
+| ESP32 POST 401 | `PLANT_API_KEY` in systemd matches sketch header |
+| Wipe fails | Enter the same API key when the PWA prompts |
+| Streamlit empty / old | Sync CSV from Pi and push; Cloud is not live |
+| Upload to ESP32 fails | Board must be on USB to the Mac for flashing |
+| Sync script fails | Pi CSV empty or missing header — check ESP32 posts and Pi service |
+
+---
+
+## Related
+
+- [README.md](README.md) — architecture, PWA vs Streamlit, skills
+- `arduino.md` — local firmware + secrets (not in git)
