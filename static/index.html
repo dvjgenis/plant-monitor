@@ -1074,6 +1074,7 @@
         },
       };
 
+      const lastIdx = points.length - 1;
       chartInstance = new Chart(ctx, {
         type: "line",
         data: {
@@ -1085,11 +1086,13 @@
             fill: true,
             tension: 0.35,
             borderWidth: 2.5,
-            pointRadius: history.length > 40 ? 3 : 5,
-            pointHoverRadius: 8,
+            // Line only — show a status-colored dot on the most recent reading
+            pointRadius: points.map((_, i) => (i === lastIdx ? 6 : 0)),
+            pointHoverRadius: points.map((_, i) => (i === lastIdx ? 8 : 5)),
+            pointHitRadius: 14,
             pointBackgroundColor: pointColors,
             pointBorderColor: "#fffbf5",
-            pointBorderWidth: 2,
+            pointBorderWidth: points.map((_, i) => (i === lastIdx ? 2 : 0)),
           }],
         },
         options: {

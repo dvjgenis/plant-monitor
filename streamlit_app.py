@@ -336,7 +336,7 @@ def render_gauge_card(row: pd.Series, selected: bool = False) -> None:
 
 
 def day_chart(day_df: pd.DataFrame) -> alt.Chart:
-    """Layered Altair chart: band guides, area, line, status-colored points, hover + zoom."""
+    """Layered Altair chart: band guides, area, line, latest-only dot, hover + zoom."""
     nearest = alt.selection_point(
         nearest=True,
         on="pointerover",
@@ -375,9 +375,27 @@ def day_chart(day_df: pd.DataFrame) -> alt.Chart:
     area = base.mark_area(opacity=0.14, color="#2d8a55", line=False)
     line = base.mark_line(color="#2d5a3d", strokeWidth=2.5)
 
-    points = (
-        base.mark_circle(size=70)
+    # Invisible points keep nearest-hover / tooltips without cluttering the line
+    hover_points = (
+        base.mark_circle(size=80, opacity=0)
         .encode(
+            tooltip=[
+                alt.Tooltip("time_of_day:N", title="Time"),
+                alt.Tooltip("moisture_percentage:Q", title="Moisture %", format=".1f"),
+                alt.Tooltip("status_category:N", title="Status"),
+            ],
+        )
+        .add_params(nearest)
+    )
+
+    # Only the most recent reading is drawn as a visible status-colored dot
+    latest_df = day_df.iloc[[-1]]
+    latest_point = (
+        alt.Chart(latest_df)
+        .mark_circle(size=110, stroke="#fffbf5", strokeWidth=2)
+        .encode(
+            x="hour_fraction:Q",
+            y="moisture_percentage:Q",
             color=alt.Color(
                 "status_category:N",
                 scale=alt.Scale(
@@ -386,14 +404,12 @@ def day_chart(day_df: pd.DataFrame) -> alt.Chart:
                 ),
                 legend=alt.Legend(title="Status", orient="bottom"),
             ),
-            size=alt.condition(nearest, alt.value(140), alt.value(70)),
             tooltip=[
                 alt.Tooltip("time_of_day:N", title="Time"),
                 alt.Tooltip("moisture_percentage:Q", title="Moisture %", format=".1f"),
                 alt.Tooltip("status_category:N", title="Status"),
             ],
         )
-        .add_params(nearest)
     )
 
     mean_y = float(day_df["moisture_percentage"].mean())
@@ -410,7 +426,9 @@ def day_chart(day_df: pd.DataFrame) -> alt.Chart:
     )
 
     return (
-        alt.layer(band_rules, area, line, mean_rule, hover_rule, points)
+        alt.layer(
+            band_rules, area, line, mean_rule, hover_rule, hover_points, latest_point
+        )
         .properties(height=280)
         .configure_view(strokeWidth=0)
         .configure_axis(
@@ -506,7 +524,7 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
     with left:
         st.markdown(
             '<div class="panel"><h3>Day history</h3>'
-            '<div class="sub">Hover points · drag horizontally to zoom hours</div>',
+            '<div class="sub">Hover the line · latest reading marked · drag to zoom</div>',
             unsafe_allow_html=True,
         )
 
