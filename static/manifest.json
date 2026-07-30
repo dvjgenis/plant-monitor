@@ -1,0 +1,16 @@
+{
+  "short_name": "Plants",
+  "name": "Plant Hydration Hub",
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#E8F0E6",
+  "theme_color": "#2D5A3D",
+  "display": "standalone"
+}
