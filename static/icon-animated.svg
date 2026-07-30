@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Plant Hydration Hub">
+  <rect width="128" height="128" rx="28" fill="#2D5A3D"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate"
+      values="-4 64 90;4 64 90;-4 64 90" dur="3.5s" repeatCount="indefinite"/>
+    <path d="M64 22c4 16 16 28 32 32-16 4-28 16-32 32-4-16-16-28-32-32 16-4 28-16 32-32z" fill="#C4E07A"/>
+    <path d="M64 54v36" stroke="#F5F8F0" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <path d="M46 98h36c4 0 7 3 7 7v1H39v-1c0-4 3-7 7-7z" fill="#F5F8F0"/>
+</svg>

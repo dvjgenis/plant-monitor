@@ -1,27 +1,28 @@
 <p align="center">
-  <img src="static/icon.svg" alt="Plant Hydration Hub" width="88" height="88">
+  <img src="static/icon-animated.svg" alt="Plant Hydration Hub" width="96" height="96">
 </p>
 
 <h1 align="center">Dulf’s Plant Hydration Hub</h1>
 
 <p align="center">
-  <strong>ESP32 → Raspberry Pi → live home PWA · public Streamlit portfolio</strong>
+  <em>ESP32 → Raspberry Pi → live home PWA · public Streamlit portfolio</em>
 </p>
 
 <p align="center">
-  <a href="https://plant-monitor.streamlit.app/"><img alt="Live demo" src="https://img.shields.io/badge/Live%20demo-plant--monitor.streamlit.app-c45c3e?style=for-the-badge"></a>
+  <a href="https://plant-monitor.streamlit.app/"><img alt="Live demo" src="https://img.shields.io/badge/🌱_Live_demo-plant--monitor.streamlit.app-c45c3e?style=for-the-badge"></a>
 </p>
 
 <p align="center">
-  <img alt="Python" src="https://img.shields.io/badge/Python-FastAPI-2d5a3d?style=flat-square">
-  <img alt="ESP32" src="https://img.shields.io/badge/Hardware-ESP32-c4922a?style=flat-square">
-  <img alt="Raspberry Pi" src="https://img.shields.io/badge/Host-Raspberry%20Pi-2d8a55?style=flat-square">
-  <a href="https://plant-monitor.streamlit.app/"><img alt="Streamlit" src="https://img.shields.io/badge/Portfolio-Streamlit-c45c3e?style=flat-square"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-2d5a3d?style=flat-square&logo=opensourceinitiative&logoColor=white"></a>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.x-3776AB?style=flat-square&logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white">
+  <img alt="Streamlit" src="https://img.shields.io/badge/Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white">
+  <img alt="ESP32" src="https://img.shields.io/badge/ESP32-Arduino-00979D?style=flat-square&logo=arduino&logoColor=white">
+  <img alt="Raspberry Pi" src="https://img.shields.io/badge/Raspberry%20Pi-A22846?style=flat-square&logo=raspberrypi&logoColor=white">
 </p>
 
 <p align="center">
-  <strong>Try the public portfolio:</strong>
-  <a href="https://plant-monitor.streamlit.app/">https://plant-monitor.streamlit.app/</a>
+  <a href="https://plant-monitor.streamlit.app/"><strong>Try the public portfolio →</strong></a>
 </p>
 
 A full-stack IoT build that measures soil moisture at the plant, stores it on a Raspberry Pi, and shows it two ways: a **live dashboard at home**, and a **portfolio snapshot** anyone can open on Streamlit Cloud.
@@ -63,7 +64,7 @@ It’s a concrete answer to: *can you design, ship, and maintain a small IoT pro
 
 ## 🏠 Two views — live vs portfolio
 
-| | Home PWA | Streamlit Cloud |
+| | 🏡 Home PWA | ☁️ Streamlit Cloud |
 |---|---|---|
 | Who | Dulf, on home Wi‑Fi | Visitors / recruiters |
 | Where | `http://plant-pi.local:8000` | **[plant-monitor.streamlit.app](https://plant-monitor.streamlit.app/)** |
@@ -180,12 +181,12 @@ With `PLANT_API_KEY` set: **GET** stays open for the dashboard; **POST / DELETE*
 
 First match wins:
 
-| Status | Moisture |
-|--------|----------|
-| Dry | ≤ 20% |
-| Moist | ≤ 50% |
-| Optimal | ≤ 80% |
-| Soggy | > 80% |
+| Status | Moisture | Badge |
+|--------|----------|-------|
+| Dry | ≤ 20% | ![Dry](https://img.shields.io/badge/Dry-≤_20%25-c45c3e?style=flat-square) |
+| Moist | ≤ 50% | ![Moist](https://img.shields.io/badge/Moist-≤_50%25-c4922a?style=flat-square) |
+| Optimal | ≤ 80% | ![Optimal](https://img.shields.io/badge/Optimal-≤_80%25-2d8a55?style=flat-square) |
+| Soggy | > 80% | ![Soggy](https://img.shields.io/badge/Soggy->_80%25-3d6b8a?style=flat-square) |
 
 ---
 
@@ -229,6 +230,12 @@ Plain-language definitions for terms used in this project:
 | **API key** | A shared secret (`PLANT_API_KEY`) required for POST/DELETE so random clients can’t spam or wipe data. |
 
 ---
+
+<p align="center">
+  <img alt="Made with" src="https://img.shields.io/badge/Made_with-💚-2d5a3d?style=flat-square">
+  <img alt="IoT" src="https://img.shields.io/badge/IoT-ESP32_%2B_Pi-c4922a?style=flat-square">
+  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/License-MIT-2d5a3d?style=flat-square"></a>
+</p>
 
 <p align="center">
   <sub>Built by Dulf · personal IoT + portfolio project · fork freely for other sensors</sub>
