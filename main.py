@@ -416,7 +416,15 @@ def download_readings_csv():
 
 @app.get("/")
 def read_index():
-    return FileResponse("static/index.html")
+    return FileResponse(
+        "static/index.html",
+        media_type="text/html",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 # Mount after API routes so /static does not shadow them
