@@ -271,6 +271,8 @@ def load_readings() -> pd.DataFrame:
 
     df["moisture_percentage"] = pd.to_numeric(df["moisture_percentage"], errors="coerce")
     df = df.dropna(subset=["moisture_percentage"])
+    if "raw_value" in df.columns:
+        df["raw_value"] = pd.to_numeric(df["raw_value"], errors="coerce")
     df["plant_id"] = pd.to_numeric(df["plant_id"], downcast="integer")
     df["plant_name"] = df.apply(display_name, axis=1)
     df["date"] = df["timestamp"].dt.date
@@ -382,6 +384,7 @@ def day_chart(day_df: pd.DataFrame) -> alt.Chart:
             tooltip=[
                 alt.Tooltip("time_of_day:N", title="Time"),
                 alt.Tooltip("moisture_percentage:Q", title="Moisture %", format=".1f"),
+                alt.Tooltip("raw_value:Q", title="Raw (ADC)", format="d"),
                 alt.Tooltip("status_category:N", title="Status"),
             ],
         )
@@ -407,6 +410,7 @@ def day_chart(day_df: pd.DataFrame) -> alt.Chart:
             tooltip=[
                 alt.Tooltip("time_of_day:N", title="Time"),
                 alt.Tooltip("moisture_percentage:Q", title="Moisture %", format=".1f"),
+                alt.Tooltip("raw_value:Q", title="Raw (ADC)", format="d"),
                 alt.Tooltip("status_category:N", title="Status"),
             ],
         )

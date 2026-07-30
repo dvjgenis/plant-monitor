@@ -1044,6 +1044,7 @@
         x: hourFraction(item),
         y: item.moisture_percentage,
         category: item.status_category || "Unknown",
+        raw_value: item.raw_value,
       }));
       const pointColors = points.map((p) => statusColor(p.category));
       const ctx = document.getElementById("moistureChart").getContext("2d");
@@ -1157,8 +1158,13 @@
                   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
                 },
                 label: (ctx) => {
-                  const cat = points[ctx.dataIndex]?.category || "";
-                  return ` ${ctx.parsed.y.toFixed(1)}% · ${cat}`;
+                  const point = points[ctx.dataIndex] || {};
+                  const cat = point.category || "";
+                  const lines = [` ${ctx.parsed.y.toFixed(1)}% · ${cat}`];
+                  if (point.raw_value != null && point.raw_value !== "") {
+                    lines.push(` Raw: ${point.raw_value} ADC`);
+                  }
+                  return lines;
                 },
               },
             },
