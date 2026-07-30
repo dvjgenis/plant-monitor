@@ -163,6 +163,21 @@
       background: rgba(196, 92, 62, 0.08);
     }
 
+    .btn-notify[data-state="on"] {
+      color: var(--optimal);
+      border-color: rgba(45, 138, 85, 0.35);
+      background: rgba(45, 138, 85, 0.08);
+    }
+
+    .notify-hint {
+      margin: 0.35rem 0 0;
+      font-size: 0.72rem;
+      color: var(--muted);
+      max-width: 16rem;
+      text-align: right;
+      line-height: 1.35;
+    }
+
     .btn-icon {
       width: 2.5rem;
       height: 2.5rem;
@@ -583,6 +598,12 @@
           <strong id="sync-status">Waiting…</strong>
           <span id="sync-detail">Connecting to server</span>
         </div>
+        <div>
+          <button class="btn btn-notify" id="notify-btn" type="button" title="Dry plant alerts">
+            Enable alerts
+          </button>
+          <p class="notify-hint" id="notify-hint" hidden></p>
+        </div>
         <button class="btn btn-danger" id="wipe-btn" type="button" title="Delete all readings">Wipe data</button>
         <button class="btn" id="refresh-btn" type="button">Refresh</button>
       </div>
@@ -650,6 +671,8 @@
 
     const refreshBtn = document.getElementById("refresh-btn");
     const wipeBtn = document.getElementById("wipe-btn");
+    const notifyBtn = document.getElementById("notify-btn");
+    const notifyHint = document.getElementById("notify-hint");
     const prevDayBtn = document.getElementById("prev-day");
     const nextDayBtn = document.getElementById("next-day");
     const dayPicker = document.getElementById("day-picker");
@@ -665,6 +688,7 @@
 
     refreshBtn.addEventListener("click", () => loadDashboard(true));
     wipeBtn.addEventListener("click", wipeData);
+    notifyBtn.addEventListener("click", togglePushAlerts);
     prevDayBtn.addEventListener("click", () => shiftDay(-1));
     nextDayBtn.addEventListener("click", () => shiftDay(1));
     dayPicker.addEventListener("change", () => {
@@ -672,6 +696,132 @@
       selectedDay = dayPicker.value;
       loadDashboard(true);
     });
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+      const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const raw = atob(base64);
+      const output = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
+      return output;
+    }
+
+    function setNotifyUi(state, hint) {
+      notifyBtn.dataset.state = state;
+      if (state === "on") {
+        notifyBtn.textContent = "Alerts on";
+      } else if (state === "unsupported") {
+        notifyBtn.textContent = "Alerts unavailable";
+        notifyBtn.disabled = true;
+      } else {
+        notifyBtn.textContent = "Enable alerts";
+        notifyBtn.disabled = false;
+      }
+      if (hint) {
+        notifyHint.hidden = false;
+        notifyHint.textContent = hint;
+      } else {
+        notifyHint.hidden = true;
+        notifyHint.textContent = "";
+      }
+    }
+
+    async function getPushSubscription() {
+      if (!("serviceWorker" in navigator)) return null;
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg || !reg.pushManager) return null;
+      return reg.pushManager.getSubscription();
+    }
+
+    async function refreshNotifyUi() {
+      if (!window.isSecureContext) {
+        setNotifyUi(
+          "unsupported",
+          "Push needs HTTPS (or localhost). See DEPLOY.md § Web Push."
+        );
+        return;
+      }
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        setNotifyUi(
+          "unsupported",
+          "This browser doesn’t support Web Push. On iPhone, use the installed Home Screen app (iOS 16.4+)."
+        );
+        return;
+      }
+
+      try {
+        const statusRes = await fetch("/api/push/status");
+        const status = statusRes.ok ? await statusRes.json() : { configured: false };
+        if (!status.configured) {
+          setNotifyUi(
+            "unsupported",
+            "Pi is missing VAPID keys — generate them and add to systemd (DEPLOY.md)."
+          );
+          return;
+        }
+
+        await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        const sub = await getPushSubscription();
+        if (sub && Notification.permission === "granted") {
+          setNotifyUi("on", "You’ll get a phone alert when any plant drops to Dry (≤20%).");
+        } else {
+          setNotifyUi("off", "Alert once per plant when moisture drops to ≤20%.");
+        }
+      } catch (err) {
+        console.warn(err);
+        setNotifyUi("off", "Could not check alert status.");
+      }
+    }
+
+    async function togglePushAlerts() {
+      if (notifyBtn.disabled) return;
+      notifyBtn.disabled = true;
+      try {
+        const existing = await getPushSubscription();
+        if (existing && notifyBtn.dataset.state === "on") {
+          await fetch("/api/push/unsubscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(existing.toJSON()),
+          });
+          await existing.unsubscribe();
+          setNotifyUi("off", "Alerts turned off on this device.");
+          return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          setNotifyUi("off", "Notification permission denied.");
+          return;
+        }
+
+        const keyRes = await fetch("/api/push/vapid-public-key");
+        if (!keyRes.ok) {
+          const err = await keyRes.json().catch(() => ({}));
+          throw new Error(err.detail || "VAPID public key unavailable");
+        }
+        const { publicKey } = await keyRes.json();
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+        const saveRes = await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sub.toJSON()),
+        });
+        if (!saveRes.ok) throw new Error("Failed to save subscription on Pi");
+        setNotifyUi("on", "You’ll get a phone alert when any plant drops to Dry (≤20%).");
+      } catch (err) {
+        console.error(err);
+        setNotifyUi("off", err.message || "Could not enable alerts.");
+      } finally {
+        if (notifyBtn.dataset.state !== "unsupported") {
+          notifyBtn.disabled = false;
+        }
+      }
+    }
 
     function localDateString(d) {
       const y = d.getFullYear();
@@ -1179,6 +1329,7 @@
     }
 
     loadDashboard();
+    refreshNotifyUi();
     pollTimer = setInterval(() => loadDashboard(false), POLL_MS);
   </script>
 </body>

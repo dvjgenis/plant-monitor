@@ -72,6 +72,9 @@ After=network.target
 User=admin
 WorkingDirectory=/home/admin/plant-monitor
 Environment=PLANT_API_KEY=your-generated-key-here
+Environment=VAPID_PRIVATE_KEY=paste-from-generate-script
+Environment=VAPID_PUBLIC_KEY=paste-from-generate-script
+Environment=VAPID_CONTACT=mailto:you@example.com
 ExecStart=/home/admin/plant-monitor/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
 
@@ -91,6 +94,52 @@ sudo systemctl status plant-server.service
 Follow logs: `journalctl -u plant-server.service -f`
 
 The same key must appear in the ESP32 sketch (`X-API-Key`) and in wipe prompts on the PWA. Keep it in local `arduino.md` (gitignored) — never commit it.
+
+---
+
+## 3b. Web Push (Dry alerts ≤20%)
+
+When a plant **enters** Dry, the Pi sends a phone notification to every device that enabled alerts in the PWA. It will not re-alert every 30 minutes while still dry; after moisture rises above 20%, the next drop can alert again.
+
+### Important: HTTPS required
+
+Browsers only allow Web Push in a **secure context** (`https://…` or `http://localhost`). Plain `http://plant-pi.local` will show **Alerts unavailable**.
+
+Practical options:
+
+1. **Tailscale Serve / Funnel** or a **Cloudflare Tunnel** in front of the Pi (easiest HTTPS to a phone away from home)
+2. Local reverse proxy with a trusted cert (mkcert / Caddy)
+
+ESP32 can keep posting to the LAN IP over HTTP; only the phone’s PWA URL needs HTTPS for push subscribe.
+
+### One-time VAPID keys (on the Pi)
+
+```bash
+cd ~/plant-monitor
+source venv/bin/activate
+pip install -r requirements-pi.txt
+python scripts/generate-vapid-keys.py
+```
+
+Paste the printed `Environment=` lines into `plant-server.service`, then:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart plant-server.service
+```
+
+### Enable on your phone
+
+1. Open the **HTTPS** PWA URL → Share → **Add to Home Screen** (iOS 16.4+)
+2. Open the installed app → **Enable alerts** → Allow notifications
+3. Optional test (from Mac, with API key):
+
+```bash
+curl -X POST http://plant-pi.local:8000/api/push/test \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+(Use your HTTPS host if that is what the phone subscribed through.)
 
 ---
 
@@ -137,8 +186,9 @@ curl -X POST http://plant-pi.local:8000/api/moisture \
 
 ```bash
 scp main.py requirements-pi.txt admin@plant-pi.local:~/plant-monitor/
-scp static/index.html static/manifest.json static/icon.svg admin@plant-pi.local:~/plant-monitor/static/
-ssh admin@plant-pi.local "sudo systemctl restart plant-server.service"
+scp scripts/generate-vapid-keys.py admin@plant-pi.local:~/plant-monitor/scripts/
+scp static/index.html static/manifest.json static/icon.svg static/sw.js admin@plant-pi.local:~/plant-monitor/static/
+ssh admin@plant-pi.local "cd ~/plant-monitor && source venv/bin/activate && pip install -r requirements-pi.txt && sudo systemctl restart plant-server.service"
 ```
 
 ---
@@ -184,6 +234,8 @@ streamlit run streamlit_app.py
 | PWA blank / offline | `systemctl status plant-server` · same Wi‑Fi · `plant-pi.local` vs IP |
 | ESP32 POST 401 | `PLANT_API_KEY` in systemd matches sketch header |
 | Wipe fails | Enter the same API key when the PWA prompts |
+| Alerts unavailable | Need HTTPS PWA URL + VAPID keys in systemd · iOS: installed Home Screen app |
+| Dry alert never fires | Enable alerts on phone · check `journalctl` for “Dry alert” · de-dupe waits for recovery above 20% |
 | Streamlit empty / old | Sync CSV from Pi and push; Cloud is not live |
 | Upload to ESP32 fails | Board must be on USB to the Mac for flashing |
 | Sync script fails | Pi CSV empty or missing header — check ESP32 posts and Pi service |

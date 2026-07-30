@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from datetime import date, datetime
 import csv
+import json
 import logging
 import os
 import re
@@ -20,6 +21,10 @@ logger = logging.getLogger("plant-monitor")
 DB_NAME = "plants.db"
 CSV_NAME = "readings.csv"
 PLANT_API_KEY = os.environ.get("PLANT_API_KEY", "").strip()
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "").strip()
+VAPID_CONTACT = os.environ.get("VAPID_CONTACT", "mailto:plant-monitor@localhost").strip()
+DRY_THRESHOLD = 20.0
 CSV_HEADERS = [
     "timestamp",
     "plant_id",
@@ -33,6 +38,12 @@ CSV_HEADERS = [
 PLANT_NAMES = {
     1: "Gynura Aurantiaca",
     2: "Plant #2",
+}
+
+# Browser push subscribe/unsubscribe from the home PWA (no ESP32 key)
+PUSH_OPEN_PATHS = {
+    "/api/push/subscribe",
+    "/api/push/unsubscribe",
 }
 
 
@@ -83,6 +94,24 @@ def init_sqlite_db():
             conn.execute(
                 "ALTER TABLE readings ADD COLUMN status_category TEXT NOT NULL DEFAULT 'Unknown'"
             )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                endpoint TEXT PRIMARY KEY,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS dry_alerts (
+                plant_id INTEGER PRIMARY KEY,
+                alerted_at TEXT NOT NULL
+            )
+            """
+        )
 
 
 def append_csv_reading(
@@ -173,14 +202,17 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
 
     GET stays open so the home dashboard (plant-pi.local) works without a key.
     POST/DELETE still need the key so random internet clients cannot spam or wipe.
+    Push subscribe/unsubscribe stay open for the local PWA.
     """
 
     MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
 
     async def dispatch(self, request: Request, call_next):
+        path = request.url.path
         if (
             PLANT_API_KEY
-            and request.url.path.startswith("/api/")
+            and path.startswith("/api/")
+            and path not in PUSH_OPEN_PATHS
             and request.method.upper() in self.MUTATING
         ):
             provided = request.headers.get("X-API-Key", "")
@@ -201,7 +233,116 @@ class SensorData(BaseModel):
     moisture_percentage: float = Field(ge=0, le=100)
 
 
+class PushKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionIn(BaseModel):
+    endpoint: str = Field(min_length=8)
+    keys: PushKeys
+
+
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def push_configured() -> bool:
+    return bool(VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY)
+
+
+def send_web_push(title: str, body: str, url: str = "/") -> dict:
+    """Send a Web Push payload to every stored subscription."""
+    if not push_configured():
+        return {"sent": 0, "failed": 0, "removed": 0, "configured": False}
+
+    try:
+        from pywebpush import webpush
+    except ImportError:
+        logger.error("pywebpush is not installed; cannot send push notifications")
+        return {"sent": 0, "failed": 0, "removed": 0, "configured": False}
+
+    payload = json.dumps({"title": title, "body": body, "url": url})
+    with get_db() as conn:
+        subs = conn.execute(
+            "SELECT endpoint, p256dh, auth FROM push_subscriptions"
+        ).fetchall()
+
+    sent = failed = removed = 0
+    for sub in subs:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub["endpoint"],
+                    "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
+                },
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": VAPID_CONTACT},
+            )
+            sent += 1
+        except Exception as exc:
+            status = None
+            response = getattr(exc, "response", None)
+            status = getattr(response, "status_code", None)
+            if status in (404, 410):
+                with get_db() as conn:
+                    conn.execute(
+                        "DELETE FROM push_subscriptions WHERE endpoint = ?",
+                        (sub["endpoint"],),
+                    )
+                removed += 1
+                logger.info("Removed expired push subscription")
+            else:
+                failed += 1
+                logger.warning("Web push failed: %s", exc)
+
+    return {
+        "sent": sent,
+        "failed": failed,
+        "removed": removed,
+        "configured": True,
+        "subscribers": len(subs),
+    }
+
+
+def maybe_notify_dry(plant_id: int, moisture_percentage: float, category: str) -> None:
+    """Alert once when a plant enters Dry; clear latch when it recovers."""
+    name = plant_name(plant_id)
+
+    with get_db() as conn:
+        if category != "Dry":
+            conn.execute("DELETE FROM dry_alerts WHERE plant_id = ?", (plant_id,))
+            return
+
+        already = conn.execute(
+            "SELECT 1 FROM dry_alerts WHERE plant_id = ?",
+            (plant_id,),
+        ).fetchone()
+        if already:
+            return
+
+        conn.execute(
+            "INSERT INTO dry_alerts (plant_id, alerted_at) VALUES (?, ?)",
+            (plant_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        )
+
+    if not push_configured():
+        logger.info(
+            "Plant #%s is Dry (%.1f%%) but VAPID keys are not configured",
+            plant_id,
+            moisture_percentage,
+        )
+        return
+
+    result = send_web_push(
+        title="Plant needs water",
+        body=f"{name} is Dry ({moisture_percentage:.1f}% ≤ {DRY_THRESHOLD:.0f}%)",
+        url="/",
+    )
+    print(
+        f"Dry alert for {name}: push sent={result.get('sent', 0)} "
+        f"failed={result.get('failed', 0)}"
+    )
 
 
 def parse_day(value: str | None) -> str:
@@ -328,6 +469,7 @@ def receive_moisture(data: SensorData):
         f"[{now}] Saved Plant #{data.plant_id} | "
         f"{data.moisture_percentage:.1f}% ({category})"
     )
+    maybe_notify_dry(data.plant_id, data.moisture_percentage, category)
     return {"status": "success", "category": category}
 
 
@@ -392,6 +534,7 @@ def wipe_readings():
     with get_db() as conn:
         deleted = conn.execute("SELECT COUNT(*) AS n FROM readings").fetchone()["n"]
         conn.execute("DELETE FROM readings")
+        conn.execute("DELETE FROM dry_alerts")
         try:
             conn.execute("DELETE FROM sqlite_sequence WHERE name = 'readings'")
         except sqlite3.OperationalError:
@@ -400,6 +543,76 @@ def wipe_readings():
     reset_csv_file()
     print(f"Wiped {deleted} reading(s) from plants.db and {CSV_NAME}")
     return {"status": "success", "deleted": deleted}
+
+
+@app.get("/api/push/status")
+def push_status():
+    """Whether Web Push is configured and how many devices are subscribed."""
+    with get_db() as conn:
+        count = conn.execute("SELECT COUNT(*) AS n FROM push_subscriptions").fetchone()[
+            "n"
+        ]
+    return {
+        "configured": push_configured(),
+        "subscribers": count,
+        "dry_threshold": DRY_THRESHOLD,
+        "secure_context_required": True,
+    }
+
+
+@app.get("/api/push/vapid-public-key")
+def vapid_public_key():
+    if not VAPID_PUBLIC_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Web Push is not configured on the Pi (missing VAPID_PUBLIC_KEY)",
+        )
+    return {"publicKey": VAPID_PUBLIC_KEY}
+
+
+@app.post("/api/push/subscribe")
+def push_subscribe(sub: PushSubscriptionIn):
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(endpoint) DO UPDATE SET
+                p256dh = excluded.p256dh,
+                auth = excluded.auth,
+                created_at = excluded.created_at
+            """,
+            (
+                sub.endpoint,
+                sub.keys.p256dh,
+                sub.keys.auth,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            ),
+        )
+    return {"status": "subscribed"}
+
+
+@app.post("/api/push/unsubscribe")
+def push_unsubscribe(sub: PushSubscriptionIn):
+    with get_db() as conn:
+        conn.execute(
+            "DELETE FROM push_subscriptions WHERE endpoint = ?",
+            (sub.endpoint,),
+        )
+    return {"status": "unsubscribed"}
+
+
+@app.post("/api/push/test")
+def push_test():
+    """Send a test notification to all subscribers (requires API key when set)."""
+    if not push_configured():
+        raise HTTPException(status_code=503, detail="VAPID keys are not configured")
+    result = send_web_push(
+        title="Plant Hydration Hub",
+        body="Test alert — push notifications are working.",
+        url="/",
+    )
+    return {"status": "ok", **result}
 
 
 @app.get("/api/readings.csv")
@@ -411,6 +624,18 @@ def download_readings_csv():
         CSV_NAME,
         media_type="text/csv",
         filename="readings.csv",
+    )
+
+
+@app.get("/sw.js")
+def service_worker():
+    return FileResponse(
+        "static/sw.js",
+        media_type="application/javascript; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Service-Worker-Allowed": "/",
+        },
     )
 
 
