@@ -17,7 +17,7 @@
 
 A full-stack IoT build that measures soil moisture at the plant, stores it on a Raspberry Pi, and shows it two ways: a **live dashboard at home**, and a **portfolio snapshot** anyone can open on Streamlit Cloud.
 
-I built this to merge three things I care about — **data**, **hardware / IoT**, and **visualization & web development** — into one honest project: taking better care of the plants at home. Not a toy demo, not a tutorial clone — a system I actually use.
+I built this to bring three threads together: a **love of working with data**, a growing **interest in hardware and IoT**, and **expertise in visualization and web development** — into one honest project: taking better care of the plants at home. Not a toy demo, not a tutorial clone — a system I actually use.
 
 ---
 

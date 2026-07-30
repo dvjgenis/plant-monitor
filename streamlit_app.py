@@ -458,12 +458,13 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
         <div class="intro">
           <p class="byline">Dulf’s Plant Hydration Hub</p>
           <p>
-            Built to merge a love of data, curiosity for hardware and IoT, and
-            experience in visualization and web development into one honest project:
-            taking better care of the plants at home. ESP32 soil probes post to a
-            Raspberry Pi that powers a live home PWA; this page is the
-            <strong>public portfolio view</strong> — a curated CSV snapshot of real
-            readings (last synced <strong>{last_updated}</strong>), not a live feed.
+            Built to bring three threads together: a love of working with data,
+            a growing interest in hardware and IoT, and expertise in visualization
+            and web development — into one honest project: taking better care of
+            the plants at home. ESP32 soil probes post to a Raspberry Pi that powers
+            a live home PWA; this page is the <strong>public portfolio view</strong> —
+            a curated CSV snapshot of real readings (last synced
+            <strong>{last_updated}</strong>), not a live feed.
           </p>
         </div>
         """,
