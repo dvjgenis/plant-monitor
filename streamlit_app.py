@@ -250,14 +250,6 @@ div[data-testid="stHtml"] iframe {
   overflow: visible;
 }
 
-.intro .byline {
-  font-family: 'Fraunces', Georgia, serif;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #2d5a3d;
-  margin: 0 0 0.35rem;
-}
-
 .intro p {
   margin: 0;
   font-size: 0.84rem;
@@ -309,30 +301,6 @@ div[data-testid="stHtml"] iframe {
   border-radius: 50%;
   margin-right: 0.35rem;
   vertical-align: middle;
-}
-
-.day-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0.35rem 0 0.65rem;
-}
-
-.day-chip {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 0.35rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid rgba(45, 90, 61, 0.14);
-  background: rgba(255, 252, 247, 0.7);
-  color: #5a7262;
-}
-
-.day-chip.active {
-  background: #2d5a3d;
-  color: #f5f8f0;
-  border-color: #2d5a3d;
 }
 
 .hour-columns {
@@ -949,7 +917,7 @@ def render_plant_toggles(names: list[str]) -> list[str]:
                 st.session_state.selected_plants = selected
                 st.rerun()
 
-    all_label = "Show one" if all_selected else "Select all"
+    all_label = "One" if all_selected else "All"
     if st.button(
         all_label,
         key="toggle_all_plants",
@@ -991,7 +959,7 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
         with st.container(border=True):
             render_html('<p class="panel-title">Present hydration</p>')
             render_html(
-                '<p class="panel-sub">Tap to multi-select · compare on the day chart</p>'
+                '<p class="panel-sub">Use buttons to multi-select · compare on the day chart</p>'
             )
             picked_plants = render_plant_toggles(names)
             selected_set = set(picked_plants)

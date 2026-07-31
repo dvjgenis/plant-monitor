@@ -222,6 +222,7 @@
     .badge.Moist { color: #8a6418; background: rgba(196, 146, 42, 0.14); border-color: rgba(196, 146, 42, 0.25); }
     .badge.Optimal { color: var(--optimal); background: rgba(45, 138, 85, 0.12); border-color: rgba(45, 138, 85, 0.22); }
     .badge.Soggy { color: var(--soggy); background: rgba(42, 122, 138, 0.12); border-color: rgba(42, 122, 138, 0.22); }
+    .badge.Unknown { color: var(--muted); background: rgba(90, 114, 98, 0.12); border-color: rgba(90, 114, 98, 0.22); }
 
     .panel {
       background: var(--surface);
@@ -572,10 +573,16 @@
     }
 
     .hour-col .hour-list li {
-      grid-template-columns: 3.6rem 1fr auto;
+      grid-template-columns: auto minmax(0, 1fr) auto;
       gap: 0.35rem;
       padding: 0.4rem 0.45rem;
       font-size: 0.78rem;
+      min-width: 0;
+    }
+
+    .hour-col .hour-list .time,
+    .hour-col .hour-list .pct {
+      white-space: nowrap;
     }
 
     .hour-col .hour-list .pct {
@@ -1078,6 +1085,8 @@
           }
           histories = await Promise.all(historyResponses.map((res) => res.json()));
           availableDays = mergeAvailableDays(histories);
+        } else {
+          availableDays = [];
         }
         const todayStr = histories[0]?.today || localDateString(new Date());
 
@@ -1208,7 +1217,16 @@
         li.classList.toggle("active", match);
       });
       if (!chartInstance || chartIndex < 0) return;
-      chartInstance.setActiveElements([{ datasetIndex, index: chartIndex }]);
+      const active = [{ datasetIndex, index: chartIndex }];
+      chartInstance.setActiveElements(active);
+      const meta = chartInstance.getDatasetMeta(datasetIndex);
+      const pt = meta?.data?.[chartIndex];
+      if (pt && chartInstance.tooltip) {
+        chartInstance.tooltip.setActiveElements(active, {
+          x: pt.x,
+          y: pt.y,
+        });
+      }
       chartInstance.update("none");
     }
 
