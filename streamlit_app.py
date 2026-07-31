@@ -24,10 +24,10 @@ PLANT_NAMES = {
 }
 
 PLANT_COLORS = {
-    1: "#1f7a45",
-    2: "#1f6fbf",
-    3: "#d45b2a",
-    4: "#7a4fb0",
+    1: "#1f7a45",  # Gynura — green
+    2: "#7a4fb0",  # Tradescantia — purple
+    3: "#e07a2a",  # Monstera — orange
+    4: "#1f6fbf",  # spare
 }
 
 STATUS_COLORS = {
