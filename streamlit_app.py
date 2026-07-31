@@ -1,9 +1,7 @@
 """Portfolio plant dashboard — reads readings.csv committed to the repo."""
 
 import html
-import json
 import textwrap
-import time
 from datetime import date
 from pathlib import Path
 
@@ -13,29 +11,6 @@ import streamlit as st
 from pandas.errors import EmptyDataError
 
 CSV_PATH = Path(__file__).parent / "readings.csv"
-# #region agent log
-_AGENT_LOG_PATH = Path(__file__).parent / ".cursor" / "debug-3de496.log"
-
-
-def _agent_log(hypothesis_id: str, location: str, message: str, data: dict, run_id: str = "pre-fix") -> None:
-    try:
-        _AGENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "sessionId": "3de496",
-            "runId": run_id,
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": int(time.time() * 1000),
-        }
-        with _AGENT_LOG_PATH.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(payload) + "\n")
-    except Exception:
-        pass
-
-
-# #endregion
 REQUIRED_COLUMNS = {
     "timestamp",
     "plant_id",
@@ -455,20 +430,6 @@ def render_html(body: str) -> None:
     cleaned = textwrap.dedent(body).strip()
     # Collapse leading indentation so Markdown won't treat tags as code fences.
     compact = "\n".join(line.lstrip() for line in cleaned.splitlines())
-    # #region agent log
-    _agent_log(
-        "H",
-        "streamlit_app.py:render_html",
-        "html render path",
-        {
-            "method": "markdown",
-            "chars": len(compact),
-            "has_intro": 'class="intro"' in compact,
-            "has_nowrap_risk": "white-space:nowrap" in compact,
-        },
-        run_id="post-fix",
-    )
-    # #endregion
     st.markdown(compact, unsafe_allow_html=True)
 
 
@@ -641,25 +602,6 @@ def _band_rules() -> alt.Chart:
 
 
 def day_chart(day_df: pd.DataFrame) -> alt.Chart:
-    # #region agent log
-    tick_values = list(range(0, 25, 3))
-    label_expr = "slice('0' + datum.value, -2) + ':00'"
-    fixed_labels = [f"{('0' + str(v))[-2:]}:00" for v in tick_values]
-    _agent_log(
-        "A",
-        "streamlit_app.py:day_chart",
-        "axis labelExpr pad simulation",
-        {
-            "labelExpr": label_expr,
-            "tick_values": tick_values,
-            "fixed_left_pad_labels": fixed_labels,
-            "has_invalid_30_60_90": any(
-                label in {"30:00", "60:00", "90:00"} for label in fixed_labels
-            ),
-        },
-        run_id="post-fix",
-    )
-    # #endregion
     if day_df["plant_id"].nunique() > 1:
         return day_chart_multi(day_df)
 
@@ -775,19 +717,6 @@ def day_chart_multi(day_df: pd.DataFrame) -> alt.Chart:
         int(day_df.loc[day_df["plant_name"] == name, "plant_id"].iloc[0]) for name in names
     ]
     colors = [plant_color(pid) for pid in ids]
-    # #region agent log
-    _agent_log(
-        "G",
-        "streamlit_app.py:day_chart_multi",
-        "plant legend removed from multi chart",
-        {
-            "plant_names": names,
-            "legend": None,
-            "reason": "redundant with Present hydration / hour lists",
-        },
-        run_id="post-fix",
-    )
-    # #endregion
 
     base = (
         alt.Chart(day_df)
@@ -889,25 +818,11 @@ def multi_day_stats_html(day_df: pd.DataFrame) -> str:
             f'<span class="value">{avg:.1f}%</span>'
             "</div>"
         )
-    html_out = (
+    return (
         '<div class="day-stats" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">'
         f'{"".join(cards)}'
         "</div>"
     )
-    # #region agent log
-    _agent_log(
-        "D",
-        "streamlit_app.py:multi_day_stats_html",
-        "day-stat cards without inline read counts",
-        {
-            "card_count": len(cards),
-            "has_read_label": "read" in html_out.lower(),
-            "sample": html_out[:180],
-        },
-        run_id="post-fix",
-    )
-    # #endregion
-    return html_out
 
 
 def day_label(day, today=None) -> str:
@@ -934,25 +849,6 @@ def short_day_label(day, today: date) -> str:
 
 def render_day_chips(available_days: list, picked, counts: dict, today: date, day_key: str) -> None:
     recent = list(reversed(available_days[-7:]))
-    chip_labels = [
-        f"{short_day_label(d, today)} · {counts.get(d, 0)}" for d in recent
-    ]
-    # #region agent log
-    _agent_log(
-        "F",
-        "streamlit_app.py:render_day_chips",
-        "day chip render decision",
-        {
-            "available_day_count": len(available_days),
-            "recent_count": len(recent),
-            "chip_labels": chip_labels,
-            "skip_when_single_day": len(available_days) <= 1,
-            "picked": str(picked),
-            "counts": {str(k): int(v) for k, v in counts.items()},
-        },
-        run_id="post-fix",
-    )
-    # #endregion
     # With only one day, the chip duplicates the selectbox and reads like "Yesterday · 3".
     if not recent or len(available_days) <= 1:
         return
@@ -985,31 +881,17 @@ def render_hour_lists_html(day_df: pd.DataFrame, multi: bool) -> str:
         return f'<ul class="hour-list">{"".join(items)}</ul>'
 
     columns = []
-    pct_audit = []
     for plant_id, group in day_df.groupby("plant_id", sort=True):
         name = html.escape(str(group["plant_name"].iloc[0]))
         swatch = plant_color(int(plant_id))
         items = []
         for _, row in group.sort_values("timestamp", ascending=False).iterrows():
-            pct_text = f'{float(row["moisture_percentage"]):.1f}%'
-            cat = str(row["status_category"])
-            item_html = (
+            items.append(
                 "<li>"
                 f'<span class="time">{html.escape(str(row["time_of_day"]))}</span>'
-                f"{badge_html(cat)}"
-                f'<span class="pct">{pct_text}</span>'
+                f'{badge_html(str(row["status_category"]))}'
+                f'<span class="pct">{float(row["moisture_percentage"]):.1f}%</span>'
                 "</li>"
-            )
-            items.append(item_html)
-            pct_audit.append(
-                {
-                    "plant": name,
-                    "category": cat,
-                    "pct_text": pct_text,
-                    "html_has_percent": "%" in item_html,
-                    "item_html": item_html,
-                    "badge_len": len(cat),
-                }
             )
         columns.append(
             '<div class="hour-col">'
@@ -1020,22 +902,7 @@ def render_hour_lists_html(day_df: pd.DataFrame, multi: bool) -> str:
             f'<ul class="hour-list">{"".join(items)}</ul>'
             "</div>"
         )
-    html_out = f'<div class="hour-columns">{"".join(columns)}</div>'
-    # #region agent log
-    _agent_log(
-        "C",
-        "streamlit_app.py:render_hour_lists_html",
-        "hour-list pct/badge audit",
-        {
-            "pct_audit": pct_audit,
-            "grid_css": "auto minmax(0, 1fr) auto",
-            "html_len": len(html_out),
-            "all_pct_have_percent": all(item["html_has_percent"] for item in pct_audit),
-        },
-        run_id="post-fix",
-    )
-    # #endregion
-    return html_out
+    return f'<div class="hour-columns">{"".join(columns)}</div>'
 
 
 def plant_toggle_label(name: str) -> str:
@@ -1064,23 +931,6 @@ def render_plant_toggles(names: list[str]) -> list[str]:
     all_selected = bool(names) and selected.issuperset(names)
 
     shorts = [plant_toggle_label(name) for name in names]
-    # #region agent log
-    _agent_log(
-        "B",
-        "streamlit_app.py:render_plant_toggles",
-        "plant toggle button layout",
-        {
-            "names": names,
-            "shorts": shorts,
-            "column_count": 3,
-            "layout": "3 plant cols + full-width All/One",
-            "longest_short": max((len(s) for s in shorts), default=0),
-            "all_selected": all_selected,
-            "toggle_all_label": "One" if all_selected else "All",
-        },
-        run_id="post-fix",
-    )
-    # #endregion
 
     cols = st.columns(3)
     for idx, name in enumerate(names):
@@ -1120,19 +970,6 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
     plant_options = dict(zip(latest["plant_name"], latest["plant_id"]))
     names = list(plant_options.keys())
 
-    # #region agent log
-    _agent_log(
-        "E",
-        "streamlit_app.py:portfolio_dashboard",
-        "title hierarchy",
-        {
-            "page_title": "Plant Hydration Hub",
-            "intro_byline_removed": True,
-            "caption": "Built by Dulf · ESP32 · Raspberry Pi · Streamlit portfolio",
-        },
-        run_id="post-fix",
-    )
-    # #endregion
     intro_html = (
         '<div class="intro"><p>'
         "Built to bring three threads together: a love of working with data, "
@@ -1144,20 +981,6 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
         f"<strong>{last_updated}</strong>), not a live feed."
         "</p></div>"
     )
-    # #region agent log
-    _agent_log(
-        "H",
-        "streamlit_app.py:portfolio_dashboard",
-        "intro text completeness",
-        {
-            "contains_hardware": "hardware and IoT" in intro_html,
-            "contains_raspberry": "Raspberry Pi" in intro_html,
-            "contains_visualization": "visualization" in intro_html,
-            "html_len": len(intro_html),
-        },
-        run_id="post-fix",
-    )
-    # #endregion
     render_html(intro_html)
 
     render_status_legend()
