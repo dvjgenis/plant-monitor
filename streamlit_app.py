@@ -880,12 +880,32 @@ def short_day_label(day, today: date) -> str:
 
 def render_day_chips(available_days: list, picked, counts: dict, today: date, day_key: str) -> None:
     recent = list(reversed(available_days[-7:]))
-    if not recent:
+    chip_labels = [
+        f"{short_day_label(d, today)} · {counts.get(d, 0)}" for d in recent
+    ]
+    # #region agent log
+    _agent_log(
+        "F",
+        "streamlit_app.py:render_day_chips",
+        "day chip render decision",
+        {
+            "available_day_count": len(available_days),
+            "recent_count": len(recent),
+            "chip_labels": chip_labels,
+            "skip_when_single_day": len(available_days) <= 1,
+            "picked": str(picked),
+            "counts": {str(k): int(v) for k, v in counts.items()},
+        },
+        run_id="post-fix",
+    )
+    # #endregion
+    # With only one day, the chip duplicates the selectbox and reads like "Yesterday · 3".
+    if not recent or len(available_days) <= 1:
         return
     cols = st.columns(len(recent))
     for col, d in zip(cols, recent):
         with col:
-            label = f"{short_day_label(d, today)} · {counts.get(d, 0)}"
+            label = f"{short_day_label(d, today)} · {counts.get(d, 0)} reads"
             if st.button(
                 label,
                 key=f"day_chip_{d}",
@@ -1025,10 +1045,12 @@ def render_plant_toggles(names: list[str]) -> list[str]:
                 st.session_state.selected_plants = selected
                 st.rerun()
 
+    all_label = "Show one" if all_selected else "Select all"
     if st.button(
-        "One" if all_selected else "All",
+        all_label,
         key="toggle_all_plants",
         use_container_width=True,
+        type="secondary",
     ):
         st.session_state.selected_plants = (
             {names[0]} if all_selected and names else set(names)
@@ -1044,10 +1066,22 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
     plant_options = dict(zip(latest["plant_name"], latest["plant_id"]))
     names = list(plant_options.keys())
 
+    # #region agent log
+    _agent_log(
+        "E",
+        "streamlit_app.py:portfolio_dashboard",
+        "title hierarchy",
+        {
+            "page_title": "Plant Hydration Hub",
+            "intro_byline_removed": True,
+            "caption": "Built by Dulf · ESP32 · Raspberry Pi · Streamlit portfolio",
+        },
+        run_id="post-fix",
+    )
+    # #endregion
     render_html(
         f"""
         <div class="intro">
-          <p class="byline">Dulf’s Plant Hydration Hub</p>
           <p>
             Built to bring three threads together: a love of working with data,
             a growing interest in hardware and IoT, and expertise in visualization
