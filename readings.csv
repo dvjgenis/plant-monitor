@@ -2,3 +2,6 @@ timestamp,plant_id,plant_name,raw_value,moisture_percentage,status_category
 2026-07-30 20:00:01,3,Monstera Deliciosa,1961,58.0,Optimal
 2026-07-30 20:00:01,1,Gynura Aurantiaca,1345,85.0,Soggy
 2026-07-30 20:00:05,2,Tradescantia Zebrina,2483,35.0,Moist
+2026-07-30 20:30:00,2,Tradescantia Zebrina,2494,35.0,Moist
+2026-07-30 20:30:00,1,Gynura Aurantiaca,1346,84.0,Soggy
+2026-07-30 20:30:01,3,Monstera Deliciosa,1943,59.0,Optimal
