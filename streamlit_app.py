@@ -32,16 +32,16 @@ PLANT_COLORS = {
 
 PLANT_BLURBS = {
     1: {
-        "about": "Velvet purple leaves—aka purple passion.",
-        "fact": "Fun: its hairs catch light like fabric.",
+        "about": "Soft velvet purple foliage—better known as purple passion.",
+        "fact": "Fun Fact: tiny leaf hairs catch light and shimmer like fabric.",
     },
     2: {
-        "about": "Trailing vine with silver zebra stripes.",
-        "fact": "Fun: cuttings root in water overnight.",
+        "about": "A trailing houseplant with bold silver zebra stripes.",
+        "fact": "Fun Fact: stem cuttings often root in water overnight.",
     },
     3: {
-        "about": "Tropical climber with holey Swiss-cheese leaves.",
-        "fact": "Fun: ripe fruit tastes like pineapple.",
+        "about": "A tropical climber famous for holey Swiss-cheese leaves.",
+        "fact": "Fun Fact: ripe fruit can taste like pineapple and banana.",
     },
 }
 
