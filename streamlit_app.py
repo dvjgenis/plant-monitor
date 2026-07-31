@@ -64,14 +64,14 @@ BADGE_STYLES = {
 
 CUSTOM_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap');
-
 .stApp {
   background:
     radial-gradient(ellipse 90% 60% at 10% -10%, #f4f9e8 0%, transparent 55%),
     radial-gradient(ellipse 70% 50% at 100% 0%, #cfe0c8 0%, transparent 50%),
     linear-gradient(165deg, #e8f0e6 0%, #d5e4d2 100%);
   background-attachment: fixed;
+  font-family: 'Manrope', sans-serif;
+  color: #1a2e22;
 }
 
 .stApp::before {
@@ -82,11 +82,6 @@ CUSTOM_CSS = """
   opacity: 0.35;
   background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%232d5a3d' fill-opacity='0.06'%3E%3Cpath d='M30 5c2 8 8 14 16 16-8 2-14 8-16 16-2-8-8-14-16-16 8-2 14-8 16-16z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   z-index: 0;
-}
-
-html, body, [class*="css"] {
-  font-family: 'Manrope', sans-serif;
-  color: #1a2e22;
 }
 
 .block-container {
@@ -402,6 +397,14 @@ def render_html(body: str) -> None:
 
 
 def inject_styles() -> None:
+    # Non-blocking font load (avoids @import inside CSS delaying first paint).
+    st.markdown(
+        '<link rel="preconnect" href="https://fonts.googleapis.com">'
+        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+        '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;700'
+        '&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">',
+        unsafe_allow_html=True,
+    )
     render_html(CUSTOM_CSS)
 
 

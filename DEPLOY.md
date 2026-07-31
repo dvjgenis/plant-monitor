@@ -185,6 +185,7 @@ streamlit run streamlit_app.py
 | ESP32 POST 401 | `PLANT_API_KEY` in systemd matches sketch header |
 | Wipe fails | Enter the same API key when the PWA prompts |
 | Streamlit empty / old | Sync CSV from Pi and push; Cloud is not live |
+| Streamlit blank spinner forever | Cold start after many pushes — **Reboot app** at [share.streamlit.io](https://share.streamlit.io); set Python **3.12** in Advanced settings; confirm the app is **public** |
 | Upload to ESP32 fails | Board must be on USB to the Mac for flashing |
 | Sync script fails | Pi CSV empty or missing header — check ESP32 posts and Pi service |
 
