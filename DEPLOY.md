@@ -154,8 +154,9 @@ Streamlit does **not** call the Pi. It reads [readings.csv](readings.csv) from G
 1. Repo on GitHub (e.g. `dvjgenis/plant-monitor`)
 2. [share.streamlit.io](https://share.streamlit.io) → **Create app**
 3. Main file: `streamlit_app.py`
-4. **No secrets** required
-5. Deploy
+4. **Advanced settings → Python version: 3.12** (required — 3.13/3.14 break Altair)
+5. **No secrets** required
+6. Deploy
 
 ### Refresh portfolio data from Mac
 
@@ -186,6 +187,7 @@ streamlit run streamlit_app.py
 | Wipe fails | Enter the same API key when the PWA prompts |
 | Streamlit empty / old | Sync CSV from Pi and push; Cloud is not live |
 | Streamlit blank spinner forever | Cold start after many pushes — **Reboot app** at [share.streamlit.io](https://share.streamlit.io); set Python **3.12** in Advanced settings; confirm the app is **public** |
+| Streamlit `TypedDict` / Altair import error | Cloud is on Python 3.14 — open **Manage app → Settings → Python 3.12**, save, then **Reboot** |
 | Upload to ESP32 fails | Board must be on USB to the Mac for flashing |
 | Sync script fails | Pi CSV empty or missing header — check ESP32 posts and Pi service |
 
