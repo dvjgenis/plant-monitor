@@ -1,7 +1,9 @@
 """Portfolio plant dashboard — reads readings.csv committed to the repo."""
 
 import html
+import json
 import textwrap
+import time
 from datetime import date
 from pathlib import Path
 
@@ -11,6 +13,29 @@ import streamlit as st
 from pandas.errors import EmptyDataError
 
 CSV_PATH = Path(__file__).parent / "readings.csv"
+# #region agent log
+_AGENT_LOG_PATH = Path(__file__).parent / ".cursor" / "debug-3de496.log"
+
+
+def _agent_log(hypothesis_id: str, location: str, message: str, data: dict, run_id: str = "pre-fix") -> None:
+    try:
+        _AGENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "sessionId": "3de496",
+            "runId": run_id,
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with _AGENT_LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(payload) + "\n")
+    except Exception:
+        pass
+
+
+# #endregion
 REQUIRED_COLUMNS = {
     "timestamp",
     "plant_id",
@@ -342,7 +367,7 @@ h1 {
 
 .hour-list li {
   display: grid;
-  grid-template-columns: 3.6rem 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.35rem;
   padding: 0.4rem 0.45rem;
@@ -350,18 +375,42 @@ h1 {
   background: rgba(255, 252, 247, 0.65);
   border: 1px solid rgba(45, 90, 61, 0.12);
   font-size: 0.78rem;
+  min-width: 0;
 }
 
 .hour-list .time {
   font-weight: 700;
   color: #2d5a3d;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hour-list .badge {
+  justify-self: start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hour-list .pct {
   font-family: 'Fraunces', Georgia, serif;
   font-weight: 700;
   font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+div[data-testid="stHorizontalBlock"] div[data-testid="column"] button {
+  border-radius: 999px !important;
+  font-weight: 600;
+  font-size: 0.78rem !important;
+  white-space: nowrap !important;
+}
+
+div[data-testid="stHorizontalBlock"] div[data-testid="column"] button p {
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 div[data-testid="stHorizontalBlock"] div[data-testid="column"] button[kind="secondary"] {
@@ -551,6 +600,25 @@ def _band_rules() -> alt.Chart:
 
 
 def day_chart(day_df: pd.DataFrame) -> alt.Chart:
+    # #region agent log
+    tick_values = list(range(0, 25, 3))
+    label_expr = "slice('0' + datum.value, -2) + ':00'"
+    fixed_labels = [f"{('0' + str(v))[-2:]}:00" for v in tick_values]
+    _agent_log(
+        "A",
+        "streamlit_app.py:day_chart",
+        "axis labelExpr pad simulation",
+        {
+            "labelExpr": label_expr,
+            "tick_values": tick_values,
+            "fixed_left_pad_labels": fixed_labels,
+            "has_invalid_30_60_90": any(
+                label in {"30:00", "60:00", "90:00"} for label in fixed_labels
+            ),
+        },
+        run_id="post-fix",
+    )
+    # #endregion
     if day_df["plant_id"].nunique() > 1:
         return day_chart_multi(day_df)
 
@@ -575,7 +643,7 @@ def day_chart(day_df: pd.DataFrame) -> alt.Chart:
                 scale=alt.Scale(domain=[0, 24]),
                 axis=alt.Axis(
                     values=list(range(0, 25, 3)),
-                    labelExpr="pad(datum.value, 2, '0') + ':00'",
+                    labelExpr="slice('0' + datum.value, -2) + ':00'",
                 ),
             ),
             y=alt.Y(
@@ -677,7 +745,7 @@ def day_chart_multi(day_df: pd.DataFrame) -> alt.Chart:
                 scale=alt.Scale(domain=[0, 24]),
                 axis=alt.Axis(
                     values=list(range(0, 25, 3)),
-                    labelExpr="pad(datum.value, 2, '0') + ':00'",
+                    labelExpr="slice('0' + datum.value, -2) + ':00'",
                 ),
             ),
             y=alt.Y(
@@ -757,18 +825,30 @@ def day_stats_html(day_df: pd.DataFrame) -> str:
 
 def multi_day_stats_html(day_df: pd.DataFrame) -> str:
     cards = []
+    read_labels = []
     for plant_id, group in day_df.groupby("plant_id", sort=True):
         name = html.escape(str(group["plant_name"].iloc[0]))
         swatch = plant_color(int(plant_id))
         avg = group["moisture_percentage"].mean()
         n = len(group)
+        read_label = f"{n} read" if n == 1 else f"{n} reads"
+        read_labels.append({"plant": name, "n": n, "label": read_label})
         cards.append(
             '<div class="day-stat">'
             f'<span class="label"><span class="plant-swatch" style="background:{swatch}"></span>{name}</span>'
             f'<span class="value">{avg:.1f}%</span>'
-            f'<span style="font-size:0.65rem;color:#5a7262;">{n} reads</span>'
+            f'<span style="font-size:0.65rem;color:#5a7262;">{read_label}</span>'
             "</div>"
         )
+    # #region agent log
+    _agent_log(
+        "D",
+        "streamlit_app.py:multi_day_stats_html",
+        "day-stat read labels",
+        {"read_labels": read_labels},
+        run_id="post-fix",
+    )
+    # #endregion
     return (
         '<div class="day-stats" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">'
         f'{"".join(cards)}'
@@ -831,17 +911,31 @@ def render_hour_lists_html(day_df: pd.DataFrame, multi: bool) -> str:
         return f'<ul class="hour-list">{"".join(items)}</ul>'
 
     columns = []
+    pct_audit = []
     for plant_id, group in day_df.groupby("plant_id", sort=True):
         name = html.escape(str(group["plant_name"].iloc[0]))
         swatch = plant_color(int(plant_id))
         items = []
         for _, row in group.sort_values("timestamp", ascending=False).iterrows():
-            items.append(
+            pct_text = f'{float(row["moisture_percentage"]):.1f}%'
+            cat = str(row["status_category"])
+            item_html = (
                 "<li>"
                 f'<span class="time">{html.escape(str(row["time_of_day"]))}</span>'
-                f'{badge_html(str(row["status_category"]))}'
-                f'<span class="pct">{float(row["moisture_percentage"]):.1f}%</span>'
+                f"{badge_html(cat)}"
+                f'<span class="pct">{pct_text}</span>'
                 "</li>"
+            )
+            items.append(item_html)
+            pct_audit.append(
+                {
+                    "plant": name,
+                    "category": cat,
+                    "pct_text": pct_text,
+                    "html_has_percent": "%" in item_html,
+                    "item_html": item_html,
+                    "badge_len": len(cat),
+                }
             )
         columns.append(
             '<div class="hour-col">'
@@ -852,7 +946,33 @@ def render_hour_lists_html(day_df: pd.DataFrame, multi: bool) -> str:
             f'<ul class="hour-list">{"".join(items)}</ul>'
             "</div>"
         )
-    return f'<div class="hour-columns">{"".join(columns)}</div>'
+    html_out = f'<div class="hour-columns">{"".join(columns)}</div>'
+    # #region agent log
+    _agent_log(
+        "C",
+        "streamlit_app.py:render_hour_lists_html",
+        "hour-list pct/badge audit",
+        {
+            "pct_audit": pct_audit,
+            "grid_css": "auto minmax(0, 1fr) auto",
+            "html_len": len(html_out),
+            "all_pct_have_percent": all(item["html_has_percent"] for item in pct_audit),
+        },
+        run_id="post-fix",
+    )
+    # #endregion
+    return html_out
+
+
+def plant_toggle_label(name: str) -> str:
+    """Short label that fits narrow Streamlit columns without mid-word wrap."""
+    parts = name.split()
+    if not parts:
+        return name
+    # Prefer species epithet when genus is long (Tradescantia → Zebrina).
+    if len(parts[0]) > 8 and len(parts) > 1:
+        return parts[1]
+    return parts[0]
 
 
 def init_plant_selection(names: list[str]) -> None:
@@ -869,13 +989,31 @@ def render_plant_toggles(names: list[str]) -> list[str]:
     selected = set(st.session_state.selected_plants)
     all_selected = bool(names) and selected.issuperset(names)
 
-    cols = st.columns(len(names) + 1)
+    shorts = [plant_toggle_label(name) for name in names]
+    # #region agent log
+    _agent_log(
+        "B",
+        "streamlit_app.py:render_plant_toggles",
+        "plant toggle button layout",
+        {
+            "names": names,
+            "shorts": shorts,
+            "column_count": 3,
+            "layout": "3 plant cols + full-width All/One",
+            "longest_short": max((len(s) for s in shorts), default=0),
+            "all_selected": all_selected,
+            "toggle_all_label": "One" if all_selected else "All",
+        },
+        run_id="post-fix",
+    )
+    # #endregion
+
+    cols = st.columns(3)
     for idx, name in enumerate(names):
-        with cols[idx]:
+        with cols[idx % 3]:
             active = name in selected
-            short = name.split()[0]
             if st.button(
-                short,
+                shorts[idx],
                 key=f"plant_toggle_{name}",
                 use_container_width=True,
                 type="primary" if active else "secondary",
@@ -887,16 +1025,15 @@ def render_plant_toggles(names: list[str]) -> list[str]:
                 st.session_state.selected_plants = selected
                 st.rerun()
 
-    with cols[-1]:
-        if st.button(
-            "One" if all_selected else "All",
-            key="toggle_all_plants",
-            use_container_width=True,
-        ):
-            st.session_state.selected_plants = (
-                {names[0]} if all_selected and names else set(names)
-            )
-            st.rerun()
+    if st.button(
+        "One" if all_selected else "All",
+        key="toggle_all_plants",
+        use_container_width=True,
+    ):
+        st.session_state.selected_plants = (
+            {names[0]} if all_selected and names else set(names)
+        )
+        st.rerun()
 
     return [n for n in names if n in st.session_state.selected_plants]
 
