@@ -428,18 +428,20 @@ def badge_html(category: str) -> str:
     return f'<span class="badge" style="color:{fg};background:{bg}">{safe}</span>'
 
 
-def bar_gradient(category: str) -> str:
-    colors = {
-        "Dry": "linear-gradient(90deg, #d97858, #c45c3e)",
-        "Moist": "linear-gradient(90deg, #e0b34d, #c4922a)",
-        "Optimal": "linear-gradient(90deg, #5cbc7d, #2d8a55)",
-        "Soggy": "linear-gradient(90deg, #4ea8b8, #2a7a8a)",
-    }
-    return colors.get(category, colors["Dry"])
-
-
 def plant_color(plant_id: int) -> str:
     return PLANT_COLORS.get(int(plant_id), PLANT_COLORS[((int(plant_id) - 1) % 4) + 1])
+
+
+def plant_bar_gradient(plant_id: int) -> str:
+    """Gauge fill matches plant identity color (green / purple / orange)."""
+    base = plant_color(plant_id)
+    lighter = {
+        1: "#4caa6e",
+        2: "#9b74c9",
+        3: "#f0a05a",
+        4: "#4a8fd4",
+    }.get(int(plant_id), base)
+    return f"linear-gradient(90deg, {lighter}, {base})"
 
 
 def relative_time(ts: pd.Timestamp) -> str:
@@ -469,7 +471,7 @@ def render_gauge_card(row: pd.Series, selected: bool = False) -> None:
             <span class="gauge-pct">{pct:.1f}%</span>
           </div>
           <div class="gauge-bar">
-            <div class="gauge-fill" style="width:{width}%;background:{bar_gradient(category)}"></div>
+            <div class="gauge-fill" style="width:{width}%;background:{plant_bar_gradient(int(row['plant_id']))}"></div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
             {badge_html(category)}
