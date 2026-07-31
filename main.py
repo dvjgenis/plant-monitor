@@ -32,7 +32,8 @@ CSV_HEADERS = [
 # Friendly labels for known plant IDs (extend as you add sensors)
 PLANT_NAMES = {
     1: "Gynura Aurantiaca",
-    2: "Plant #2",
+    2: "Tradescantia Zebrina (Father)",
+    3: "Monstera Deliciosa",
 }
 
 

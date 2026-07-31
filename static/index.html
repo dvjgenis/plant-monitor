@@ -356,10 +356,62 @@
       color: var(--muted);
     }
 
+    .panel-head-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .linkish {
+      appearance: none;
+      border: none;
+      background: none;
+      padding: 0;
+      font: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--brand);
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .linkish:hover { color: var(--ink); }
+
+    .chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.75rem;
+      margin: 0 0 0.65rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .chart-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .chart-legend i {
+      width: 0.7rem;
+      height: 0.7rem;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
     .chart-wrap {
       height: 260px;
       position: relative;
       animation: chartFade 0.45s ease both;
+    }
+
+    .chart-wrap.multi {
+      height: 300px;
     }
 
     @keyframes chartFade {
@@ -413,6 +465,17 @@
       font-size: 0.82rem;
       font-weight: 600;
       color: var(--ink);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      min-width: 0;
+    }
+
+    .gauge-row .swatch {
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      flex-shrink: 0;
     }
 
     .gauge-row .reading {
@@ -459,6 +522,59 @@
       gap: 0.45rem;
       max-height: 320px;
       overflow-y: auto;
+    }
+
+    .hour-columns {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+      gap: 0.65rem;
+      margin-top: 0.85rem;
+    }
+
+    .hour-col-head {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 0.35rem;
+      min-width: 0;
+    }
+
+    .hour-col-head i {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .hour-col-head span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hour-col .hour-list {
+      margin: 0;
+      max-height: 220px;
+      gap: 0.3rem;
+    }
+
+    .hour-col .hour-list li {
+      grid-template-columns: 3.6rem 1fr auto;
+      gap: 0.35rem;
+      padding: 0.4rem 0.45rem;
+      font-size: 0.78rem;
+    }
+
+    .hour-col .hour-list .pct {
+      font-size: 0.88rem;
+    }
+
+    .hour-col .badge {
+      font-size: 0.62rem;
+      padding: 0.22rem 0.4rem;
     }
 
     .hour-list li {
@@ -619,17 +735,21 @@
 
         <div class="day-chips" id="day-chips" aria-label="Days with readings"></div>
 
+        <div class="chart-legend" id="chart-legend" hidden></div>
         <div class="chart-wrap" id="chart-wrap">
           <canvas id="moistureChart" aria-label="Moisture history chart"></canvas>
         </div>
         <div id="day-empty" class="empty-day" hidden>No readings for this day yet.</div>
-        <ul class="hour-list" id="hour-list"></ul>
+        <div id="hour-list"></div>
       </section>
 
       <section class="panel" id="now-panel">
         <div class="panel-head">
           <h2>Present hydration</h2>
-          <span>Latest reading · click a plant for day history</span>
+          <div class="panel-head-actions">
+            <button type="button" class="linkish" id="select-all-plants">All</button>
+            <span>Tap to multi-select</span>
+          </div>
         </div>
         <div class="gauge-stack" id="gauge-stack"></div>
       </section>
@@ -640,10 +760,20 @@
 
   <script>
     const POLL_MS = 30000;
+    // Distinct hues for multi-plant chart lines + dots (1–3+)
+    const PLANT_PALETTE = [
+      { line: "#1f7a45", fill: "rgba(31, 122, 69, 0.16)" },   // Gynura — green
+      { line: "#1f6fbf", fill: "rgba(31, 111, 191, 0.14)" },  // Tradescantia — blue
+      { line: "#d45b2a", fill: "rgba(212, 91, 42, 0.14)" },   // Monstera — coral
+      { line: "#7a4fb0", fill: "rgba(122, 79, 176, 0.14)" },  // spare
+    ];
+
     let chartInstance = null;
-    let selectedPlantId = 1;
+    let selectedPlantIds = new Set();
+    let knownPlantIds = [];
+    let selectionInitialized = false;
     let selectedDay = localDateString(new Date());
-    let selectedChartIndex = -1;
+    let selectedHighlight = null; // { plantId, chartIndex }
     let lastHistoryFingerprint = "";
     let availableDays = [];
     let pollTimer = null;
@@ -661,7 +791,9 @@
     const hourList = document.getElementById("hour-list");
     const dayEmpty = document.getElementById("day-empty");
     const chartWrap = document.getElementById("chart-wrap");
+    const chartLegend = document.getElementById("chart-legend");
     const gaugeStack = document.getElementById("gauge-stack");
+    const selectAllBtn = document.getElementById("select-all-plants");
 
     refreshBtn.addEventListener("click", () => loadDashboard(true));
     wipeBtn.addEventListener("click", wipeData);
@@ -672,6 +804,49 @@
       selectedDay = dayPicker.value;
       loadDashboard(true);
     });
+    selectAllBtn.addEventListener("click", () => {
+      if (!knownPlantIds.length) return;
+      const allSelected = knownPlantIds.every((id) => selectedPlantIds.has(id));
+      selectedPlantIds = new Set(allSelected ? [knownPlantIds[0]] : knownPlantIds);
+      loadDashboard(true);
+    });
+
+    function plantStyle(plantId) {
+      return PLANT_PALETTE[(Number(plantId) - 1 + PLANT_PALETTE.length) % PLANT_PALETTE.length];
+    }
+
+    function selectedIdsSorted() {
+      return [...selectedPlantIds].sort((a, b) => a - b);
+    }
+
+    function syncSelectionWithPlants(plants) {
+      const ids = plants.map((p) => p.plant_id);
+      if (!selectionInitialized) {
+        selectedPlantIds = new Set(ids);
+        selectionInitialized = true;
+      } else {
+        for (const id of ids) {
+          if (!knownPlantIds.includes(id)) selectedPlantIds.add(id);
+        }
+        selectedPlantIds = new Set([...selectedPlantIds].filter((id) => ids.includes(id)));
+        if (selectedPlantIds.size === 0 && ids.length) {
+          selectedPlantIds.add(ids[0]);
+        }
+      }
+      knownPlantIds = ids;
+    }
+
+    function mergeAvailableDays(histories) {
+      const map = new Map();
+      for (const hist of histories) {
+        for (const item of hist.available_days || []) {
+          map.set(item.date, (map.get(item.date) || 0) + (item.reading_count || 0));
+        }
+      }
+      return [...map.entries()]
+        .map(([date, reading_count]) => ({ date, reading_count }))
+        .sort((a, b) => b.date.localeCompare(a.date));
+    }
 
     function localDateString(d) {
       const y = d.getFullYear();
@@ -720,6 +895,20 @@
       if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
       if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
       return `${Math.floor(diffSec / 86400)}d ago`;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function safeCategory(category) {
+      const allowed = ["Dry", "Moist", "Optimal", "Soggy"];
+      return allowed.includes(category) ? category : "Unknown";
     }
 
     function setSync(ok, message) {
@@ -834,19 +1023,11 @@
     async function loadDashboard(manual = false) {
       refreshBtn.disabled = true;
       try {
-        const [plantsRes, historyRes] = await Promise.all([
-          fetch("/api/plants"),
-          fetch(`/api/plants/${selectedPlantId}/history?day=${encodeURIComponent(selectedDay)}`),
-        ]);
-
-        if (!plantsRes.ok || !historyRes.ok) {
-          throw new Error("Server returned an error");
-        }
+        const plantsRes = await fetch("/api/plants");
+        if (!plantsRes.ok) throw new Error("Server returned an error");
 
         const plantsData = await plantsRes.json();
-        let historyData = await historyRes.json();
         const plants = plantsData.plants || [];
-        const todayStr = historyData.today || localDateString(new Date());
 
         if (plants.length === 0) {
           showState(
@@ -860,20 +1041,25 @@
 
         clearState();
         vizRow.hidden = false;
+        syncSelectionWithPlants(plants);
 
-        if (!plants.some((p) => p.plant_id === selectedPlantId)) {
-          selectedPlantId = plants[0].plant_id;
-          const retry = await fetch(
-            `/api/plants/${selectedPlantId}/history?day=${encodeURIComponent(selectedDay)}`
-          );
-          historyData = await retry.json();
+        const ids = selectedIdsSorted();
+        const historyResponses = await Promise.all(
+          ids.map((id) =>
+            fetch(`/api/plants/${id}/history?day=${encodeURIComponent(selectedDay)}`)
+          )
+        );
+        if (historyResponses.some((res) => !res.ok)) {
+          throw new Error("Server returned an error");
         }
+        const histories = await Promise.all(historyResponses.map((res) => res.json()));
+        const todayStr = histories[0]?.today || localDateString(new Date());
 
-        availableDays = historyData.available_days || [];
+        availableDays = mergeAvailableDays(histories);
         updateDayControls(todayStr);
         renderDayChips(todayStr);
         renderNowView(plants);
-        renderDayView(historyData);
+        renderDayView(histories);
 
         const stamp = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
         setSync(true, manual ? `Refreshed at ${stamp}` : `Auto-refresh · last sync ${stamp}`);
@@ -891,12 +1077,19 @@
     }
 
     function renderNowView(plants) {
+      const allSelected =
+        knownPlantIds.length > 0 &&
+        knownPlantIds.every((id) => selectedPlantIds.has(id));
+      selectAllBtn.textContent = allSelected ? "One" : "All";
+
       gaugeStack.innerHTML = plants
         .map((plant) => {
           const pct = Number(plant.moisture_percentage);
-          const category = plant.status_category || "Unknown";
+          const category = safeCategory(plant.status_category || "Unknown");
           const width = Math.min(100, Math.max(0, pct));
-          const active = plant.plant_id === selectedPlantId ? "active" : "";
+          const active = selectedPlantIds.has(plant.plant_id) ? "active" : "";
+          const color = plantStyle(plant.plant_id).line;
+          const name = escapeHtml(plant.name);
           return `
             <button
               type="button"
@@ -904,14 +1097,14 @@
               data-plant-id="${plant.plant_id}"
               aria-pressed="${active ? "true" : "false"}"
             >
-              <span class="name">${plant.name}</span>
+              <span class="name"><i class="swatch" style="background:${color}"></i>${name}</span>
               <span class="reading">${pct.toFixed(1)}%</span>
               <div class="gauge-track" aria-hidden="true">
                 <i class="${category}" style="width:${width}%"></i>
               </div>
               <div class="gauge-meta">
                 <span class="badge ${category}">${category}</span>
-                <span>${plant.time_of_day} · ${relativeTime(plant.iso_timestamp || plant.full_timestamp)}</span>
+                <span>${escapeHtml(plant.time_of_day)} · ${relativeTime(plant.iso_timestamp || plant.full_timestamp)}</span>
               </div>
             </button>
           `;
@@ -920,7 +1113,14 @@
 
       gaugeStack.querySelectorAll(".gauge-row").forEach((btn) => {
         btn.addEventListener("click", async () => {
-          selectedPlantId = Number(btn.dataset.plantId);
+          const id = Number(btn.dataset.plantId);
+          if (selectedPlantIds.has(id)) {
+            if (selectedPlantIds.size === 1) return;
+            selectedPlantIds.delete(id);
+          } else {
+            selectedPlantIds.add(id);
+          }
+          selectedHighlight = null;
           await loadDashboard(true);
         });
       });
@@ -940,10 +1140,15 @@
       return `${String(hour).padStart(2, "0")}:00`;
     }
 
-    function historyFingerprint(history) {
-      return history
-        .map((item) => `${item.time_of_day}:${item.moisture_percentage}:${item.status_category}`)
-        .join("|");
+    function historyFingerprint(histories) {
+      return histories
+        .map((hist) => {
+          const rows = (hist.history || [])
+            .map((item) => `${item.time_of_day}:${item.moisture_percentage}:${item.status_category}`)
+            .join("|");
+          return `${hist.plant_id}:${rows}`;
+        })
+        .join("||");
     }
 
     function statusColor(category) {
@@ -956,61 +1161,26 @@
       return map[category] || "#2d8a55";
     }
 
-    function highlightReading(chartIndex) {
-      selectedChartIndex = chartIndex;
+    function highlightReading(plantId, chartIndex, datasetIndex = 0) {
+      selectedHighlight = { plantId, chartIndex };
       hourList.querySelectorAll("li").forEach((li) => {
-        li.classList.toggle("active", Number(li.dataset.chartIndex) === chartIndex);
+        const match =
+          Number(li.dataset.plantId) === plantId &&
+          Number(li.dataset.chartIndex) === chartIndex;
+        li.classList.toggle("active", match);
       });
       if (!chartInstance || chartIndex < 0) return;
-      chartInstance.setActiveElements([{ datasetIndex: 0, index: chartIndex }]);
+      chartInstance.setActiveElements([{ datasetIndex, index: chartIndex }]);
       chartInstance.update("none");
     }
 
-    function renderDayView(historyData) {
-      const history = historyData.history || [];
-      const name = historyData.name || `Plant #${historyData.plant_id}`;
-      const todayStr = historyData.today || localDateString(new Date());
-      const dayLabel = formatDayTitle(selectedDay, todayStr);
-
-      document.getElementById("chart-subtitle").textContent =
-        `${name} · ${dayLabel} · ${history.length} reading${history.length === 1 ? "" : "s"}`;
-
-      if (history.length === 0) {
-        chartWrap.hidden = true;
-        dayEmpty.hidden = false;
-        hourList.innerHTML = "";
-        selectedChartIndex = -1;
-        lastHistoryFingerprint = "";
-        if (chartInstance) {
-          chartInstance.destroy();
-          chartInstance = null;
-        }
-        return;
-      }
-
-      const fingerprint = historyFingerprint(history);
-      const unchanged = fingerprint === lastHistoryFingerprint && chartInstance;
-
-      chartWrap.hidden = false;
-      dayEmpty.hidden = true;
-
-      const reversed = [...history].reverse();
-      hourList.innerHTML = reversed
-        .map((item, revIdx) => {
-          const chartIndex = history.length - 1 - revIdx;
-          const active = chartIndex === selectedChartIndex ? "active" : "";
-          return `
-          <li data-chart-index="${chartIndex}" class="${active}" role="button" tabindex="0">
-            <span class="time">${item.time_of_day}</span>
-            <span class="badge ${item.status_category}">${item.status_category}</span>
-            <span class="pct">${Number(item.moisture_percentage).toFixed(1)}%</span>
-          </li>
-        `;
-        })
-        .join("");
-
+    function bindHourListClicks(datasetIndexByPlant) {
       hourList.querySelectorAll("li").forEach((li) => {
-        const activate = () => highlightReading(Number(li.dataset.chartIndex));
+        const activate = () => {
+          const plantId = Number(li.dataset.plantId);
+          const chartIndex = Number(li.dataset.chartIndex);
+          highlightReading(plantId, chartIndex, datasetIndexByPlant.get(plantId) || 0);
+        };
         li.addEventListener("click", activate);
         li.addEventListener("keydown", (e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -1019,10 +1189,147 @@
           }
         });
       });
+    }
+
+    function renderHourLists(histories) {
+      const multi = histories.length > 1;
+      if (!multi) {
+        const hist = histories[0];
+        const history = hist.history || [];
+        const reversed = [...history].reverse();
+        hourList.innerHTML = `
+          <ul class="hour-list">
+            ${reversed
+              .map((item, revIdx) => {
+                const chartIndex = history.length - 1 - revIdx;
+                const active =
+                  selectedHighlight &&
+                  selectedHighlight.plantId === hist.plant_id &&
+                  selectedHighlight.chartIndex === chartIndex
+                    ? "active"
+                    : "";
+                const cat = safeCategory(item.status_category);
+                return `
+                  <li data-plant-id="${hist.plant_id}" data-chart-index="${chartIndex}" class="${active}" role="button" tabindex="0">
+                    <span class="time">${escapeHtml(item.time_of_day)}</span>
+                    <span class="badge ${cat}">${cat}</span>
+                    <span class="pct">${Number(item.moisture_percentage).toFixed(1)}%</span>
+                  </li>
+                `;
+              })
+              .join("")}
+          </ul>
+        `;
+        return;
+      }
+
+      hourList.innerHTML = `
+        <div class="hour-columns">
+          ${histories
+            .map((hist) => {
+              const history = hist.history || [];
+              const color = plantStyle(hist.plant_id).line;
+              const name = escapeHtml(hist.name || `Plant #${hist.plant_id}`);
+              const reversed = [...history].reverse();
+              return `
+                <div class="hour-col">
+                  <div class="hour-col-head">
+                    <i style="background:${color}"></i>
+                    <span title="${name}">${name}</span>
+                  </div>
+                  <ul class="hour-list">
+                    ${
+                      history.length === 0
+                        ? `<li style="cursor:default;grid-template-columns:1fr"><span class="time" style="color:var(--muted)">No readings</span></li>`
+                        : reversed
+                            .map((item, revIdx) => {
+                              const chartIndex = history.length - 1 - revIdx;
+                              const active =
+                                selectedHighlight &&
+                                selectedHighlight.plantId === hist.plant_id &&
+                                selectedHighlight.chartIndex === chartIndex
+                                  ? "active"
+                                  : "";
+                              const cat = safeCategory(item.status_category);
+                              return `
+                                <li data-plant-id="${hist.plant_id}" data-chart-index="${chartIndex}" class="${active}" role="button" tabindex="0">
+                                  <span class="time">${escapeHtml(item.time_of_day)}</span>
+                                  <span class="badge ${cat}">${cat}</span>
+                                  <span class="pct">${Number(item.moisture_percentage).toFixed(1)}%</span>
+                                </li>
+                              `;
+                            })
+                            .join("")
+                    }
+                  </ul>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+      `;
+    }
+
+    function renderDayView(histories) {
+      const todayStr = histories[0]?.today || localDateString(new Date());
+      const dayLabel = formatDayTitle(selectedDay, todayStr);
+      const totalReadings = histories.reduce(
+        (sum, hist) => sum + (hist.history || []).length,
+        0
+      );
+      const names = histories.map((h) => h.name || `Plant #${h.plant_id}`);
+      const subtitle =
+        histories.length === 1
+          ? `${names[0]} · ${dayLabel} · ${totalReadings} reading${totalReadings === 1 ? "" : "s"}`
+          : `${histories.length} plants · ${dayLabel} · ${totalReadings} reading${totalReadings === 1 ? "" : "s"}`;
+      document.getElementById("chart-subtitle").textContent = subtitle;
+
+      const withData = histories.filter((h) => (h.history || []).length > 0);
+      if (withData.length === 0) {
+        chartWrap.hidden = true;
+        chartLegend.hidden = true;
+        dayEmpty.hidden = false;
+        hourList.innerHTML = "";
+        selectedHighlight = null;
+        lastHistoryFingerprint = "";
+        if (chartInstance) {
+          chartInstance.destroy();
+          chartInstance = null;
+        }
+        return;
+      }
+
+      const fingerprint = historyFingerprint(histories);
+      const unchanged = fingerprint === lastHistoryFingerprint && chartInstance;
+      const datasetIndexByPlant = new Map(
+        withData.map((hist, idx) => [hist.plant_id, idx])
+      );
+
+      chartWrap.hidden = false;
+      dayEmpty.hidden = true;
+      chartWrap.classList.toggle("multi", histories.length > 1);
+      chartLegend.hidden = histories.length < 2;
+      if (histories.length > 1) {
+        chartLegend.innerHTML = histories
+          .map((hist) => {
+            const color = plantStyle(hist.plant_id).line;
+            const name = escapeHtml(hist.name || `Plant #${hist.plant_id}`);
+            return `<span><i style="background:${color}"></i>${name}</span>`;
+          })
+          .join("");
+      } else {
+        chartLegend.innerHTML = "";
+      }
+
+      renderHourLists(histories);
+      bindHourListClicks(datasetIndexByPlant);
 
       if (unchanged) {
-        if (selectedChartIndex >= 0 && selectedChartIndex < history.length) {
-          highlightReading(selectedChartIndex);
+        if (selectedHighlight) {
+          const ds = datasetIndexByPlant.get(selectedHighlight.plantId);
+          if (ds != null) {
+            highlightReading(selectedHighlight.plantId, selectedHighlight.chartIndex, ds);
+          }
         }
         return;
       }
@@ -1040,20 +1347,8 @@
         return;
       }
 
-      const points = history.map((item) => ({
-        x: hourFraction(item),
-        y: item.moisture_percentage,
-        category: item.status_category || "Unknown",
-        raw_value: item.raw_value,
-      }));
-      const pointColors = points.map((p) => statusColor(p.category));
       const ctx = document.getElementById("moistureChart").getContext("2d");
-
       if (chartInstance) chartInstance.destroy();
-
-      const gradient = ctx.createLinearGradient(0, 0, 0, 240);
-      gradient.addColorStop(0, "rgba(45, 138, 85, 0.28)");
-      gradient.addColorStop(1, "rgba(45, 138, 85, 0.02)");
 
       const bandLines = {
         id: "moistureBands",
@@ -1075,34 +1370,55 @@
         },
       };
 
-      const lastIdx = points.length - 1;
+      const datasets = withData.map((hist) => {
+        const history = hist.history || [];
+        const style = plantStyle(hist.plant_id);
+        const points = history.map((item) => ({
+          x: hourFraction(item),
+          y: item.moisture_percentage,
+          category: item.status_category || "Unknown",
+          raw_value: item.raw_value,
+          plant_id: hist.plant_id,
+          plant_name: hist.name || `Plant #${hist.plant_id}`,
+        }));
+        const lastIdx = points.length - 1;
+        const single = withData.length === 1;
+        // Multi-plant: plant-colored dots. Single: status-colored latest dot.
+        const pointColors = points.map((p) =>
+          single ? statusColor(p.category) : style.line
+        );
+        return {
+          label: hist.name || `Plant #${hist.plant_id}`,
+          plantId: hist.plant_id,
+          data: points,
+          borderColor: style.line,
+          backgroundColor: style.fill,
+          fill: single,
+          tension: 0.35,
+          borderWidth: single ? 2.5 : 2.5,
+          pointRadius: points.map((_, i) => (i === lastIdx ? (single ? 6 : 7) : 0)),
+          pointHoverRadius: points.map((_, i) => (i === lastIdx ? 9 : 5)),
+          pointHitRadius: 14,
+          pointBackgroundColor: pointColors,
+          pointBorderColor: "#fffbf5",
+          pointBorderWidth: points.map((_, i) => (i === lastIdx ? 2 : 0)),
+        };
+      });
+
       chartInstance = new Chart(ctx, {
         type: "line",
-        data: {
-          datasets: [{
-            label: "Moisture (%)",
-            data: points,
-            borderColor: "#2d5a3d",
-            backgroundColor: gradient,
-            fill: true,
-            tension: 0.35,
-            borderWidth: 2.5,
-            // Line only — show a status-colored dot on the most recent reading
-            pointRadius: points.map((_, i) => (i === lastIdx ? 6 : 0)),
-            pointHoverRadius: points.map((_, i) => (i === lastIdx ? 8 : 5)),
-            pointHitRadius: 14,
-            pointBackgroundColor: pointColors,
-            pointBorderColor: "#fffbf5",
-            pointBorderWidth: points.map((_, i) => (i === lastIdx ? 2 : 0)),
-          }],
-        },
+        data: { datasets },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           parsing: false,
           interaction: { mode: "nearest", intersect: false, axis: "x" },
           onClick(_evt, elements) {
-            if (elements.length) highlightReading(elements[0].index);
+            if (!elements.length) return;
+            const el = elements[0];
+            const ds = datasets[el.datasetIndex];
+            if (!ds) return;
+            highlightReading(ds.plantId, el.index, el.datasetIndex);
           },
           scales: {
             y: {
@@ -1158,9 +1474,10 @@
                   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
                 },
                 label: (ctx) => {
-                  const point = points[ctx.dataIndex] || {};
+                  const point = ctx.raw || {};
+                  const plant = point.plant_name || ctx.dataset.label || "";
                   const cat = point.category || "";
-                  const lines = [` ${ctx.parsed.y.toFixed(1)}% · ${cat}`];
+                  const lines = [` ${plant}: ${ctx.parsed.y.toFixed(1)}% · ${cat}`];
                   if (point.raw_value != null && point.raw_value !== "") {
                     lines.push(` Raw: ${point.raw_value} ADC`);
                   }
@@ -1173,8 +1490,11 @@
         plugins: [bandLines],
       });
 
-      if (selectedChartIndex >= 0 && selectedChartIndex < history.length) {
-        highlightReading(selectedChartIndex);
+      if (selectedHighlight) {
+        const ds = datasetIndexByPlant.get(selectedHighlight.plantId);
+        if (ds != null) {
+          highlightReading(selectedHighlight.plantId, selectedHighlight.chartIndex, ds);
+        }
       }
     }
 
