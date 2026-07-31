@@ -190,7 +190,7 @@ div[data-testid="stHtml"] iframe {
 
 .gauge-blurb {
   margin: 0 0 0.4rem;
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   line-height: 1.35;
   color: #5a7262;
 }
