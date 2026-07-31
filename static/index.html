@@ -1190,6 +1190,15 @@
       return map[category] || "#2d8a55";
     }
 
+    function clearHighlight() {
+      selectedHighlight = null;
+      hourList.querySelectorAll("li").forEach((li) => li.classList.remove("active"));
+      if (!chartInstance) return;
+      chartInstance.setActiveElements([]);
+      chartInstance.tooltip?.setActiveElements([], { x: 0, y: 0 });
+      chartInstance.update("none");
+    }
+
     function highlightReading(plantId, chartIndex, datasetIndex = 0) {
       selectedHighlight = { plantId, chartIndex };
       hourList.querySelectorAll("li").forEach((li) => {
@@ -1203,12 +1212,28 @@
       chartInstance.update("none");
     }
 
+    function toggleHighlight(plantId, chartIndex, datasetIndex = 0) {
+      if (
+        selectedHighlight &&
+        selectedHighlight.plantId === plantId &&
+        selectedHighlight.chartIndex === chartIndex
+      ) {
+        clearHighlight();
+        return;
+      }
+      highlightReading(plantId, chartIndex, datasetIndex);
+    }
+
     function bindHourListClicks(datasetIndexByPlant) {
       hourList.querySelectorAll("li").forEach((li) => {
         const activate = () => {
           const plantId = Number(li.dataset.plantId);
           const chartIndex = Number(li.dataset.chartIndex);
-          highlightReading(plantId, chartIndex, datasetIndexByPlant.get(plantId) || 0);
+          toggleHighlight(
+            plantId,
+            chartIndex,
+            datasetIndexByPlant.get(plantId) || 0
+          );
         };
         li.addEventListener("click", activate);
         li.addEventListener("keydown", (e) => {
@@ -1456,7 +1481,7 @@
             const el = elements[0];
             const ds = datasets[el.datasetIndex];
             if (!ds) return;
-            highlightReading(ds.plantId, el.index, el.datasetIndex);
+            toggleHighlight(ds.plantId, el.index, el.datasetIndex);
           },
           scales: {
             y: {
