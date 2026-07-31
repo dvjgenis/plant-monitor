@@ -116,8 +116,11 @@ html, body, [class*="css"] {
 
 .block-container {
   max-width: 1100px;
-  padding-top: 1.5rem;
+  padding-top: 2.25rem !important;
   padding-bottom: 2.5rem;
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+  overflow: visible !important;
 }
 
 h1 {
@@ -125,6 +128,22 @@ h1 {
   color: #2d5a3d !important;
   font-weight: 700 !important;
   letter-spacing: -0.02em;
+  line-height: 1.2 !important;
+  margin-top: 0.35rem !important;
+  overflow: visible !important;
+}
+
+/* st.html iframes can clip wide content; keep HTML blocks fully visible */
+div[data-testid="stHtml"],
+div[data-testid="stMarkdown"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+}
+
+div[data-testid="stHtml"] iframe {
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 [data-testid="stVerticalBlockBorderWrapper"] {
@@ -246,10 +265,14 @@ h1 {
 
 .intro {
   margin: 0.35rem 0 1.1rem;
-  padding: 0.85rem 1rem;
+  padding: 0.85rem 1.1rem;
   border-radius: 14px;
   border: 1px solid rgba(45, 90, 61, 0.14);
   background: rgba(255, 252, 247, 0.72);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
 }
 
 .intro .byline {
@@ -263,8 +286,12 @@ h1 {
 .intro p {
   margin: 0;
   font-size: 0.84rem;
-  line-height: 1.45;
+  line-height: 1.5;
   color: #5a7262;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+  max-width: 100%;
 }
 
 .day-stats {
@@ -423,12 +450,25 @@ div[data-testid="stHorizontalBlock"] div[data-testid="column"] button[kind="seco
 
 
 def render_html(body: str) -> None:
-    """Render HTML without Markdown treating indented tags as code fences."""
+    """Render HTML in the main doc so app CSS applies (avoids st.html clip/iframe)."""
     cleaned = textwrap.dedent(body).strip()
-    if hasattr(st, "html"):
-        st.html(cleaned)
-    else:
-        st.markdown(cleaned, unsafe_allow_html=True)
+    # Collapse leading indentation so Markdown won't treat tags as code fences.
+    compact = "\n".join(line.lstrip() for line in cleaned.splitlines())
+    # #region agent log
+    _agent_log(
+        "H",
+        "streamlit_app.py:render_html",
+        "html render path",
+        {
+            "method": "markdown",
+            "chars": len(compact),
+            "has_intro": 'class="intro"' in compact,
+            "has_nowrap_risk": "white-space:nowrap" in compact,
+        },
+        run_id="post-fix",
+    )
+    # #endregion
+    st.markdown(compact, unsafe_allow_html=True)
 
 
 def inject_styles() -> None:
@@ -1092,21 +1132,32 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
         run_id="post-fix",
     )
     # #endregion
-    render_html(
-        f"""
-        <div class="intro">
-          <p>
-            Built to bring three threads together: a love of working with data,
-            a growing interest in hardware and IoT, and expertise in visualization
-            and web development — into one honest project: taking better care of
-            the plants at home. ESP32 soil probes post to a Raspberry Pi that powers
-            a live home PWA; this page is the <strong>public portfolio view</strong> —
-            a curated CSV snapshot of real readings (last synced
-            <strong>{last_updated}</strong>), not a live feed.
-          </p>
-        </div>
-        """
+    intro_html = (
+        '<div class="intro"><p>'
+        "Built to bring three threads together: a love of working with data, "
+        "a growing interest in hardware and IoT, and expertise in visualization "
+        "and web development — into one honest project: taking better care of "
+        "the plants at home. ESP32 soil probes post to a Raspberry Pi that powers "
+        "a live home PWA; this page is the <strong>public portfolio view</strong> — "
+        "a curated CSV snapshot of real readings (last synced "
+        f"<strong>{last_updated}</strong>), not a live feed."
+        "</p></div>"
     )
+    # #region agent log
+    _agent_log(
+        "H",
+        "streamlit_app.py:portfolio_dashboard",
+        "intro text completeness",
+        {
+            "contains_hardware": "hardware and IoT" in intro_html,
+            "contains_raspberry": "Raspberry Pi" in intro_html,
+            "contains_visualization": "visualization" in intro_html,
+            "html_len": len(intro_html),
+        },
+        run_id="post-fix",
+    )
+    # #endregion
+    render_html(intro_html)
 
     render_status_legend()
 
