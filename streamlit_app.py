@@ -320,8 +320,9 @@ div[data-testid="stHtml"] iframe {
 }
 
 .day-stat .value {
+  display: block;
   font-family: 'Fraunces', Georgia, serif;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: #1a2e22;
 }
@@ -878,35 +879,35 @@ def day_stats_html(day_df: pd.DataFrame) -> str:
 
 def multi_day_stats_html(day_df: pd.DataFrame) -> str:
     cards = []
-    read_labels = []
     for plant_id, group in day_df.groupby("plant_id", sort=True):
         name = html.escape(str(group["plant_name"].iloc[0]))
         swatch = plant_color(int(plant_id))
         avg = group["moisture_percentage"].mean()
-        n = len(group)
-        read_label = f"{n} read" if n == 1 else f"{n} reads"
-        read_labels.append({"plant": name, "n": n, "label": read_label})
         cards.append(
             '<div class="day-stat">'
             f'<span class="label"><span class="plant-swatch" style="background:{swatch}"></span>{name}</span>'
             f'<span class="value">{avg:.1f}%</span>'
-            f'<span style="font-size:0.65rem;color:#5a7262;">{read_label}</span>'
             "</div>"
         )
-    # #region agent log
-    _agent_log(
-        "D",
-        "streamlit_app.py:multi_day_stats_html",
-        "day-stat read labels",
-        {"read_labels": read_labels},
-        run_id="post-fix",
-    )
-    # #endregion
-    return (
+    html_out = (
         '<div class="day-stats" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">'
         f'{"".join(cards)}'
         "</div>"
     )
+    # #region agent log
+    _agent_log(
+        "D",
+        "streamlit_app.py:multi_day_stats_html",
+        "day-stat cards without inline read counts",
+        {
+            "card_count": len(cards),
+            "has_read_label": "read" in html_out.lower(),
+            "sample": html_out[:180],
+        },
+        run_id="post-fix",
+    )
+    # #endregion
+    return html_out
 
 
 def day_label(day, today=None) -> str:
