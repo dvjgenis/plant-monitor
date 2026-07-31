@@ -8,6 +8,7 @@ __pycache__/
 .env
 .idea/
 .vscode/
+.cursor/
 arduino.md
 future.md
 .streamlit/secrets.toml

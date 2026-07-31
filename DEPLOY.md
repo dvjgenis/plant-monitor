@@ -141,6 +141,8 @@ scp static/index.html static/manifest.json static/icon.svg admin@plant-pi.local:
 ssh admin@plant-pi.local "sudo systemctl restart plant-server.service"
 ```
 
+UI-only PWA edits (`static/index.html`): still scp + restart, then hard-refresh the browser (Cmd+Shift+R). GitHub push updates Streamlit Cloud only — it does **not** update the Pi.
+
 ---
 
 ## 7. Streamlit portfolio (CSV snapshot)
