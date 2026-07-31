@@ -1,80 +1,14 @@
 """Portfolio plant dashboard — reads readings.csv committed to the repo."""
 
 import html
-import json
-import sys
 import textwrap
-import time
 from datetime import date
 from pathlib import Path
 
-# #region agent log
-_DEBUG_LOG = Path(__file__).resolve().parent / ".cursor" / "debug-d09858.log"
-
-def _agent_log(hypothesis_id: str, location: str, message: str, data: dict | None = None, run_id: str = "post-fix") -> None:
-    payload = {
-        "sessionId": "d09858",
-        "runId": run_id,
-        "hypothesisId": hypothesis_id,
-        "location": location,
-        "message": message,
-        "data": data or {},
-        "timestamp": int(time.time() * 1000),
-    }
-    try:
-        _DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
-        with _DEBUG_LOG.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(payload) + "\n")
-    except OSError:
-        pass
-
-_agent_log(
-    "A",
-    "streamlit_app.py:pre-import",
-    "python runtime before altair import",
-    {"python": sys.version, "version_info": list(sys.version_info[:3])},
-)
-# #endregion
-
-try:
-    import altair as alt
-except Exception as _altair_err:  # noqa: BLE001 — debug capture
-    # #region agent log
-    _agent_log(
-        "A",
-        "streamlit_app.py:altair-import",
-        "altair import failed",
-        {"error": type(_altair_err).__name__, "msg": str(_altair_err)[:500]},
-    )
-    # #endregion
-    raise
-else:
-    # #region agent log
-    _agent_log(
-        "E",
-        "streamlit_app.py:altair-import",
-        "altair import ok",
-        {"altair": getattr(alt, "__version__", None)},
-    )
-    # #endregion
-
+import altair as alt
 import pandas as pd
 import streamlit as st
 from pandas.errors import EmptyDataError
-
-# #region agent log
-_agent_log(
-    "E",
-    "streamlit_app.py:deps",
-    "core deps loaded",
-    {
-        "streamlit": getattr(st, "__version__", None),
-        "pandas": getattr(pd, "__version__", None),
-        "altair": getattr(alt, "__version__", None),
-        "python": list(sys.version_info[:3]),
-    },
-)
-# #endregion
 
 CSV_PATH = Path(__file__).parent / "readings.csv"
 REQUIRED_COLUMNS = {
@@ -249,16 +183,17 @@ div[data-testid="stHtml"] iframe {
   border-radius: inherit;
 }
 
-.gauge-blurb {
-  margin: 0 0 0.4rem;
-  font-size: 0.6rem;
-  line-height: 1.35;
-  color: #5a7262;
+p.gauge-blurb {
+  margin: 0 0 0.4rem !important;
+  font-size: 0.7rem !important;
+  line-height: 1.35 !important;
+  color: #5a7262 !important;
 }
 
-.gauge-blurb .fact {
+p.gauge-blurb .fact {
   display: block;
   margin-top: 0.15rem;
+  font-size: inherit;
   color: rgba(90, 114, 98, 0.85);
 }
 
