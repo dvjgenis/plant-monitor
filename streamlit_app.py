@@ -734,6 +734,19 @@ def day_chart_multi(day_df: pd.DataFrame) -> alt.Chart:
         int(day_df.loc[day_df["plant_name"] == name, "plant_id"].iloc[0]) for name in names
     ]
     colors = [plant_color(pid) for pid in ids]
+    # #region agent log
+    _agent_log(
+        "G",
+        "streamlit_app.py:day_chart_multi",
+        "plant legend removed from multi chart",
+        {
+            "plant_names": names,
+            "legend": None,
+            "reason": "redundant with Present hydration / hour lists",
+        },
+        run_id="post-fix",
+    )
+    # #endregion
 
     base = (
         alt.Chart(day_df)
@@ -756,7 +769,7 @@ def day_chart_multi(day_df: pd.DataFrame) -> alt.Chart:
             color=alt.Color(
                 "plant_name:N",
                 scale=alt.Scale(domain=names, range=colors),
-                legend=alt.Legend(title="Plant", orient="bottom"),
+                legend=None,
             ),
         )
     )
