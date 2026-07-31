@@ -1,4 +1,4 @@
-# Streamlit Cloud: set Python to 3.12 in Advanced settings (3.14 breaks Altair).
-streamlit>=1.40.0,<1.48.0
+# Altair 6+ required on Python 3.14 (TypedDict closed=). Prefer Cloud Python 3.12 if available.
+streamlit>=1.40.0,<2
 pandas>=2.0.0,<3
-altair>=5.0.0,<5.5.0
+altair>=6.0.0,<7
