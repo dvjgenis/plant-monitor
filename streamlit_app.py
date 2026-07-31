@@ -1,6 +1,7 @@
 """Portfolio plant dashboard — reads readings.csv committed to the repo."""
 
 import html
+import textwrap
 from datetime import date
 from pathlib import Path
 
@@ -372,8 +373,17 @@ div[data-testid="stHorizontalBlock"] div[data-testid="column"] button[kind="seco
 """
 
 
+def render_html(body: str) -> None:
+    """Render HTML without Markdown treating indented tags as code fences."""
+    cleaned = textwrap.dedent(body).strip()
+    if hasattr(st, "html"):
+        st.html(cleaned)
+    else:
+        st.markdown(cleaned, unsafe_allow_html=True)
+
+
 def inject_styles() -> None:
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+    render_html(CUSTOM_CSS)
 
 
 def display_name(row: pd.Series) -> str:
@@ -499,7 +509,7 @@ def render_gauge_card(row: pd.Series, selected: bool = False) -> None:
             f'<p class="gauge-blurb">{html.escape(blurb["about"])}'
             f'<span class="fact">{html.escape(blurb["fact"])}</span></p>'
         )
-    st.markdown(
+    render_html(
         f"""
         <div class="gauge-card{selected_cls}">
           <div class="gauge-top">
@@ -515,13 +525,12 @@ def render_gauge_card(row: pd.Series, selected: bool = False) -> None:
             <span style="font-size:0.72rem;color:#5a7262;">{when}</span>
           </div>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
 def render_status_legend() -> None:
-    st.markdown(
+    render_html(
         """
         <div class="legend">
           <span><i style="background:#c45c3e"></i> Dry ≤20%</span>
@@ -529,8 +538,7 @@ def render_status_legend() -> None:
           <span><i style="background:#2d8a55"></i> Optimal ≤80%</span>
           <span><i style="background:#2a7a8a"></i> Soggy &gt;80%</span>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -737,14 +745,14 @@ def day_stats_html(day_df: pd.DataFrame) -> str:
     lo = day_df["moisture_percentage"].min()
     hi = day_df["moisture_percentage"].max()
     n = len(day_df)
-    return f"""
-    <div class="day-stats">
-      <div class="day-stat"><span class="label">Avg</span><span class="value">{avg:.1f}%</span></div>
-      <div class="day-stat"><span class="label">Low</span><span class="value">{lo:.1f}%</span></div>
-      <div class="day-stat"><span class="label">High</span><span class="value">{hi:.1f}%</span></div>
-      <div class="day-stat"><span class="label">Reads</span><span class="value">{n}</span></div>
-    </div>
-    """
+    return (
+        '<div class="day-stats">'
+        f'<div class="day-stat"><span class="label">Avg</span><span class="value">{avg:.1f}%</span></div>'
+        f'<div class="day-stat"><span class="label">Low</span><span class="value">{lo:.1f}%</span></div>'
+        f'<div class="day-stat"><span class="label">High</span><span class="value">{hi:.1f}%</span></div>'
+        f'<div class="day-stat"><span class="label">Reads</span><span class="value">{n}</span></div>'
+        "</div>"
+    )
 
 
 def multi_day_stats_html(day_df: pd.DataFrame) -> str:
@@ -755,15 +763,17 @@ def multi_day_stats_html(day_df: pd.DataFrame) -> str:
         avg = group["moisture_percentage"].mean()
         n = len(group)
         cards.append(
-            f"""
-            <div class="day-stat">
-              <span class="label"><span class="plant-swatch" style="background:{swatch}"></span>{name}</span>
-              <span class="value">{avg:.1f}%</span>
-              <span style="font-size:0.65rem;color:#5a7262;">{n} reads</span>
-            </div>
-            """
+            '<div class="day-stat">'
+            f'<span class="label"><span class="plant-swatch" style="background:{swatch}"></span>{name}</span>'
+            f'<span class="value">{avg:.1f}%</span>'
+            f'<span style="font-size:0.65rem;color:#5a7262;">{n} reads</span>'
+            "</div>"
         )
-    return f'<div class="day-stats" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">{"".join(cards)}</div>'
+    return (
+        '<div class="day-stats" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">'
+        f'{"".join(cards)}'
+        "</div>"
+    )
 
 
 def day_label(day, today=None) -> str:
@@ -812,13 +822,11 @@ def render_hour_lists_html(day_df: pd.DataFrame, multi: bool) -> str:
         items = []
         for _, row in rows.iterrows():
             items.append(
-                f"""
-                <li>
-                  <span class="time">{html.escape(str(row['time_of_day']))}</span>
-                  {badge_html(str(row['status_category']))}
-                  <span class="pct">{float(row['moisture_percentage']):.1f}%</span>
-                </li>
-                """
+                "<li>"
+                f'<span class="time">{html.escape(str(row["time_of_day"]))}</span>'
+                f'{badge_html(str(row["status_category"]))}'
+                f'<span class="pct">{float(row["moisture_percentage"]):.1f}%</span>'
+                "</li>"
             )
         return f'<ul class="hour-list">{"".join(items)}</ul>'
 
@@ -829,24 +837,20 @@ def render_hour_lists_html(day_df: pd.DataFrame, multi: bool) -> str:
         items = []
         for _, row in group.sort_values("timestamp", ascending=False).iterrows():
             items.append(
-                f"""
-                <li>
-                  <span class="time">{html.escape(str(row['time_of_day']))}</span>
-                  {badge_html(str(row['status_category']))}
-                  <span class="pct">{float(row['moisture_percentage']):.1f}%</span>
-                </li>
-                """
+                "<li>"
+                f'<span class="time">{html.escape(str(row["time_of_day"]))}</span>'
+                f'{badge_html(str(row["status_category"]))}'
+                f'<span class="pct">{float(row["moisture_percentage"]):.1f}%</span>'
+                "</li>"
             )
         columns.append(
-            f"""
-            <div class="hour-col">
-              <div class="hour-col-head">
-                <span class="plant-swatch" style="background:{swatch}"></span>
-                <span title="{name}">{name}</span>
-              </div>
-              <ul class="hour-list">{"".join(items)}</ul>
-            </div>
-            """
+            '<div class="hour-col">'
+            '<div class="hour-col-head">'
+            f'<span class="plant-swatch" style="background:{swatch}"></span>'
+            f'<span title="{name}">{name}</span>'
+            "</div>"
+            f'<ul class="hour-list">{"".join(items)}</ul>'
+            "</div>"
         )
     return f'<div class="hour-columns">{"".join(columns)}</div>'
 
@@ -903,7 +907,7 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
     plant_options = dict(zip(latest["plant_name"], latest["plant_id"]))
     names = list(plant_options.keys())
 
-    st.markdown(
+    render_html(
         f"""
         <div class="intro">
           <p class="byline">Dulf’s Plant Hydration Hub</p>
@@ -917,8 +921,7 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
             <strong>{last_updated}</strong>), not a live feed.
           </p>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     render_status_legend()
@@ -927,10 +930,9 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
 
     with right:
         with st.container(border=True):
-            st.markdown('<p class="panel-title">Present hydration</p>', unsafe_allow_html=True)
-            st.markdown(
-                '<p class="panel-sub">Tap to multi-select · compare on the day chart</p>',
-                unsafe_allow_html=True,
+            render_html('<p class="panel-title">Present hydration</p>')
+            render_html(
+                '<p class="panel-sub">Tap to multi-select · compare on the day chart</p>'
             )
             picked_plants = render_plant_toggles(names)
             selected_set = set(picked_plants)
@@ -939,10 +941,9 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
 
     with left:
         with st.container(border=True):
-            st.markdown('<p class="panel-title">Day history</p>', unsafe_allow_html=True)
-            st.markdown(
-                '<p class="panel-sub">Multi-plant overlay · hover · drag to zoom</p>',
-                unsafe_allow_html=True,
+            render_html('<p class="panel-title">Day history</p>')
+            render_html(
+                '<p class="panel-sub">Multi-plant overlay · hover · drag to zoom</p>'
             )
 
             if not picked_plants:
@@ -1018,17 +1019,16 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
             else:
                 if len(selected_ids) == 1:
                     st.caption(f"{picked_plants[0]} · {day_label(picked, today)}")
-                    st.markdown(day_stats_html(day_df), unsafe_allow_html=True)
+                    render_html(day_stats_html(day_df))
                 else:
                     st.caption(
                         f"{len(selected_ids)} plants · {day_label(picked, today)} · {len(day_df)} readings"
                     )
-                    st.markdown(multi_day_stats_html(day_df), unsafe_allow_html=True)
+                    render_html(multi_day_stats_html(day_df))
 
                 st.altair_chart(day_chart(day_df), use_container_width=True)
-                st.markdown(
-                    render_hour_lists_html(day_df, multi=len(selected_ids) > 1),
-                    unsafe_allow_html=True,
+                render_html(
+                    render_hour_lists_html(day_df, multi=len(selected_ids) > 1)
                 )
 
 
