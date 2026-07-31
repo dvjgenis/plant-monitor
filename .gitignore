@@ -9,4 +9,5 @@ __pycache__/
 .idea/
 .vscode/
 arduino.md
+future.md
 .streamlit/secrets.toml
