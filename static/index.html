@@ -510,6 +510,20 @@
       color: var(--muted);
     }
 
+    .gauge-blurb {
+      grid-column: 1 / -1;
+      margin: 0;
+      font-size: 0.68rem;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .gauge-blurb .fact {
+      display: block;
+      margin-top: 0.15rem;
+      color: rgba(90, 114, 98, 0.85);
+    }
+
     .hour-list {
       list-style: none;
       margin: 1rem 0 0;
@@ -764,6 +778,21 @@
       { line: "#1f6fbf", light: "#4a8fd4", fill: "rgba(31, 111, 191, 0.14)" }, // spare
     ];
 
+    const PLANT_BLURBS = {
+      1: {
+        about: "Velvet purple leaves—aka purple passion.",
+        fact: "Fun: its hairs catch light like fabric.",
+      },
+      2: {
+        about: "Trailing vine with silver zebra stripes.",
+        fact: "Fun: cuttings root in water overnight.",
+      },
+      3: {
+        about: "Tropical climber with holey Swiss-cheese leaves.",
+        fact: "Fun: ripe fruit tastes like pineapple.",
+      },
+    };
+
     let chartInstance = null;
     let selectedPlantIds = new Set();
     let knownPlantIds = [];
@@ -825,9 +854,6 @@
           if (!knownPlantIds.includes(id)) selectedPlantIds.add(id);
         }
         selectedPlantIds = new Set([...selectedPlantIds].filter((id) => ids.includes(id)));
-        if (selectedPlantIds.size === 0 && ids.length) {
-          selectedPlantIds.add(ids[0]);
-        }
       }
       knownPlantIds = ids;
     }
@@ -1040,18 +1066,21 @@
         syncSelectionWithPlants(plants);
 
         const ids = selectedIdsSorted();
-        const historyResponses = await Promise.all(
-          ids.map((id) =>
-            fetch(`/api/plants/${id}/history?day=${encodeURIComponent(selectedDay)}`)
-          )
-        );
-        if (historyResponses.some((res) => !res.ok)) {
-          throw new Error("Server returned an error");
+        let histories = [];
+        if (ids.length > 0) {
+          const historyResponses = await Promise.all(
+            ids.map((id) =>
+              fetch(`/api/plants/${id}/history?day=${encodeURIComponent(selectedDay)}`)
+            )
+          );
+          if (historyResponses.some((res) => !res.ok)) {
+            throw new Error("Server returned an error");
+          }
+          histories = await Promise.all(historyResponses.map((res) => res.json()));
+          availableDays = mergeAvailableDays(histories);
         }
-        const histories = await Promise.all(historyResponses.map((res) => res.json()));
         const todayStr = histories[0]?.today || localDateString(new Date());
 
-        availableDays = mergeAvailableDays(histories);
         updateDayControls(todayStr);
         renderDayChips(todayStr);
         renderNowView(plants);
@@ -1086,6 +1115,10 @@
           const active = selectedPlantIds.has(plant.plant_id) ? "active" : "";
           const style = plantStyle(plant.plant_id);
           const name = escapeHtml(plant.name);
+          const blurb = PLANT_BLURBS[plant.plant_id];
+          const blurbHtml = blurb
+            ? `<p class="gauge-blurb">${escapeHtml(blurb.about)}<span class="fact">${escapeHtml(blurb.fact)}</span></p>`
+            : "";
           return `
             <button
               type="button"
@@ -1098,6 +1131,7 @@
               <div class="gauge-track" aria-hidden="true">
                 <i style="width:${width}%;--gauge-base:${style.line};--gauge-light:${style.light}"></i>
               </div>
+              ${blurbHtml}
               <div class="gauge-meta">
                 <span class="badge ${category}">${category}</span>
                 <span>${escapeHtml(plant.time_of_day)} · ${relativeTime(plant.iso_timestamp || plant.full_timestamp)}</span>
@@ -1111,7 +1145,6 @@
         btn.addEventListener("click", async () => {
           const id = Number(btn.dataset.plantId);
           if (selectedPlantIds.has(id)) {
-            if (selectedPlantIds.size === 1) return;
             selectedPlantIds.delete(id);
           } else {
             selectedPlantIds.add(id);
@@ -1274,10 +1307,14 @@
         0
       );
       const names = histories.map((h) => h.name || `Plant #${h.plant_id}`);
-      const subtitle =
-        histories.length === 1
-          ? `${names[0]} · ${dayLabel} · ${totalReadings} reading${totalReadings === 1 ? "" : "s"}`
-          : `${histories.length} plants · ${dayLabel} · ${totalReadings} reading${totalReadings === 1 ? "" : "s"}`;
+      let subtitle;
+      if (histories.length === 0) {
+        subtitle = "No plant selected";
+      } else if (histories.length === 1) {
+        subtitle = `${names[0]} · ${dayLabel} · ${totalReadings} reading${totalReadings === 1 ? "" : "s"}`;
+      } else {
+        subtitle = `${histories.length} plants · ${dayLabel} · ${totalReadings} reading${totalReadings === 1 ? "" : "s"}`;
+      }
       document.getElementById("chart-subtitle").textContent = subtitle;
 
       const withData = histories.filter((h) => (h.history || []).length > 0);
@@ -1285,6 +1322,10 @@
         chartWrap.hidden = true;
         chartLegend.hidden = true;
         dayEmpty.hidden = false;
+        dayEmpty.textContent =
+          histories.length === 0
+            ? "Select a plant to view its day chart."
+            : "No readings for this day yet.";
         hourList.innerHTML = "";
         selectedHighlight = null;
         lastHistoryFingerprint = "";
@@ -1408,7 +1449,8 @@
           responsive: true,
           maintainAspectRatio: false,
           parsing: false,
-          interaction: { mode: "nearest", intersect: false, axis: "x" },
+          // Nearest by X+Y so stacked same-hour dots resolve to one plant.
+          interaction: { mode: "nearest", intersect: true, axis: "xy" },
           onClick(_evt, elements) {
             if (!elements.length) return;
             const el = elements[0];
@@ -1456,11 +1498,18 @@
           plugins: {
             legend: { display: false },
             tooltip: {
+              mode: "nearest",
+              intersect: true,
               backgroundColor: "#1a2e22",
-              titleFont: { family: "Manrope", size: 12 },
+              titleColor: "#f4f9e8",
+              bodyColor: "#e8f0e6",
+              titleFont: { family: "Manrope", size: 12, weight: "600" },
               bodyFont: { family: "Manrope", size: 12 },
-              padding: 10,
+              padding: { top: 10, right: 12, bottom: 10, left: 12 },
               cornerRadius: 10,
+              boxPadding: 4,
+              bodySpacing: 4,
+              displayColors: true,
               callbacks: {
                 title: (items) => {
                   const x = items[0]?.parsed?.x;
@@ -1473,11 +1522,12 @@
                   const point = ctx.raw || {};
                   const plant = point.plant_name || ctx.dataset.label || "";
                   const cat = point.category || "";
-                  const lines = [` ${plant}: ${ctx.parsed.y.toFixed(1)}% · ${cat}`];
-                  if (point.raw_value != null && point.raw_value !== "") {
-                    lines.push(` Raw: ${point.raw_value} ADC`);
-                  }
-                  return lines;
+                  return `${plant}: ${ctx.parsed.y.toFixed(1)}% · ${cat}`;
+                },
+                afterLabel: (ctx) => {
+                  const point = ctx.raw || {};
+                  if (point.raw_value == null || point.raw_value === "") return "";
+                  return `Raw ${point.raw_value} ADC`;
                 },
               },
             },

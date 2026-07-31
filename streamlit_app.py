@@ -30,6 +30,21 @@ PLANT_COLORS = {
     4: "#1f6fbf",  # spare
 }
 
+PLANT_BLURBS = {
+    1: {
+        "about": "Velvet purple leaves—aka purple passion.",
+        "fact": "Fun: its hairs catch light like fabric.",
+    },
+    2: {
+        "about": "Trailing vine with silver zebra stripes.",
+        "fact": "Fun: cuttings root in water overnight.",
+    },
+    3: {
+        "about": "Tropical climber with holey Swiss-cheese leaves.",
+        "fact": "Fun: ripe fruit tastes like pineapple.",
+    },
+}
+
 STATUS_COLORS = {
     "Dry": "#c45c3e",
     "Moist": "#c4922a",
@@ -151,6 +166,19 @@ h1 {
 .gauge-fill {
   height: 100%;
   border-radius: inherit;
+}
+
+.gauge-blurb {
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: #5a7262;
+}
+
+.gauge-blurb .fact {
+  display: block;
+  margin-top: 0.15rem;
+  color: rgba(90, 114, 98, 0.85);
 }
 
 .badge {
@@ -462,7 +490,15 @@ def render_gauge_card(row: pd.Series, selected: bool = False) -> None:
     selected_cls = " selected" if selected else ""
     name = html.escape(str(row["plant_name"]))
     when = html.escape(relative_time(row["timestamp"]))
-    swatch = plant_color(int(row["plant_id"]))
+    pid = int(row["plant_id"])
+    swatch = plant_color(pid)
+    blurb = PLANT_BLURBS.get(pid)
+    blurb_html = ""
+    if blurb:
+        blurb_html = (
+            f'<p class="gauge-blurb">{html.escape(blurb["about"])}'
+            f'<span class="fact">{html.escape(blurb["fact"])}</span></p>'
+        )
     st.markdown(
         f"""
         <div class="gauge-card{selected_cls}">
@@ -471,8 +507,9 @@ def render_gauge_card(row: pd.Series, selected: bool = False) -> None:
             <span class="gauge-pct">{pct:.1f}%</span>
           </div>
           <div class="gauge-bar">
-            <div class="gauge-fill" style="width:{width}%;background:{plant_bar_gradient(int(row['plant_id']))}"></div>
+            <div class="gauge-fill" style="width:{width}%;background:{plant_bar_gradient(pid)}"></div>
           </div>
+          {blurb_html}
           <div style="display:flex;justify-content:space-between;align-items:center;">
             {badge_html(category)}
             <span style="font-size:0.72rem;color:#5a7262;">{when}</span>
@@ -649,14 +686,14 @@ def day_chart_multi(day_df: pd.DataFrame) -> alt.Chart:
     )
 
     line = base.mark_line(strokeWidth=2.5)
-    points = base.mark_circle(size=55, opacity=0).encode(
-        tooltip=[
-            alt.Tooltip("plant_name:N", title="Plant"),
-            alt.Tooltip("time_of_day:N", title="Time"),
-            alt.Tooltip("moisture_percentage:Q", title="Moisture %", format=".1f"),
-            alt.Tooltip("status_category:N", title="Status"),
-        ]
-    )
+    point_tooltip = [
+        alt.Tooltip("plant_name:N", title="Plant"),
+        alt.Tooltip("time_of_day:N", title="Time"),
+        alt.Tooltip("moisture_percentage:Q", title="Moisture %", format=".1f"),
+        alt.Tooltip("status_category:N", title="Status"),
+        alt.Tooltip("raw_value:Q", title="Raw (ADC)", format="d"),
+    ]
+    points = base.mark_circle(size=55, opacity=0).encode(tooltip=point_tooltip)
 
     latest_rows = (
         day_df.sort_values("timestamp").groupby("plant_id", as_index=False).last()
@@ -672,12 +709,7 @@ def day_chart_multi(day_df: pd.DataFrame) -> alt.Chart:
                 scale=alt.Scale(domain=names, range=colors),
                 legend=None,
             ),
-            tooltip=[
-                alt.Tooltip("plant_name:N", title="Plant"),
-                alt.Tooltip("time_of_day:N", title="Time"),
-                alt.Tooltip("moisture_percentage:Q", title="Moisture %", format=".1f"),
-                alt.Tooltip("status_category:N", title="Status"),
-            ],
+            tooltip=point_tooltip,
         )
     )
 
@@ -822,17 +854,16 @@ def render_hour_lists_html(day_df: pd.DataFrame, multi: bool) -> str:
 def init_plant_selection(names: list[str]) -> None:
     if "selected_plants" not in st.session_state:
         st.session_state.selected_plants = set(names)
+        return
     st.session_state.selected_plants = {
         n for n in st.session_state.selected_plants if n in names
     }
-    if not st.session_state.selected_plants:
-        st.session_state.selected_plants = {names[0]}
 
 
 def render_plant_toggles(names: list[str]) -> list[str]:
     init_plant_selection(names)
-    selected = st.session_state.selected_plants
-    all_selected = len(selected) == len(names)
+    selected = set(st.session_state.selected_plants)
+    all_selected = bool(names) and selected.issuperset(names)
 
     cols = st.columns(len(names) + 1)
     for idx, name in enumerate(names):
@@ -845,9 +876,9 @@ def render_plant_toggles(names: list[str]) -> list[str]:
                 use_container_width=True,
                 type="primary" if active else "secondary",
             ):
-                if active and len(selected) > 1:
+                if active:
                     selected.discard(name)
-                elif not active:
+                else:
                     selected.add(name)
                 st.session_state.selected_plants = selected
                 st.rerun()
@@ -858,14 +889,12 @@ def render_plant_toggles(names: list[str]) -> list[str]:
             key="toggle_all_plants",
             use_container_width=True,
         ):
-            st.session_state.selected_plants = {names[0]} if all_selected else set(names)
+            st.session_state.selected_plants = (
+                {names[0]} if all_selected and names else set(names)
+            )
             st.rerun()
 
-    picked = [n for n in names if n in st.session_state.selected_plants]
-    if not picked:
-        picked = [names[0]]
-        st.session_state.selected_plants = {names[0]}
-    return picked
+    return [n for n in names if n in st.session_state.selected_plants]
 
 
 def portfolio_dashboard(df: pd.DataFrame) -> None:
@@ -915,6 +944,10 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
                 '<p class="panel-sub">Multi-plant overlay · hover · drag to zoom</p>',
                 unsafe_allow_html=True,
             )
+
+            if not picked_plants:
+                st.info("Select a plant to view its day chart.")
+                return
 
             selected_ids = [plant_options[n] for n in picked_plants]
             plant_df = df[df["plant_id"].isin(selected_ids)]
