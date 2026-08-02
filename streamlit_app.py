@@ -819,6 +819,23 @@ def short_day_label(day, today: date) -> str:
     return pd.Timestamp(day).strftime("%a %b %d")
 
 
+def _set_day(day_key: str, day: date) -> None:
+    """Callback: set selected day before widgets instantiate on the next run."""
+    st.session_state[day_key] = day
+
+
+def _nudge_day(day_key: str, delta: int) -> None:
+    """Callback: step ←/→ across days stored for navigation."""
+    days = st.session_state.get("_nav_days")
+    current = st.session_state.get(day_key)
+    if not days or current not in days:
+        return
+    idx = days.index(current)
+    new_idx = idx + delta
+    if 0 <= new_idx < len(days):
+        st.session_state[day_key] = days[new_idx]
+
+
 def render_day_chips(available_days: list, picked, counts: dict, today: date, day_key: str) -> None:
     recent = list(reversed(available_days[-7:]))
     # With only one day, the chip duplicates the selectbox and reads like "Yesterday · 3".
@@ -828,14 +845,14 @@ def render_day_chips(available_days: list, picked, counts: dict, today: date, da
     for col, d in zip(cols, recent):
         with col:
             label = f"{short_day_label(d, today)} · {counts.get(d, 0)} reads"
-            if st.button(
+            st.button(
                 label,
                 key=f"day_chip_{d}",
                 use_container_width=True,
                 type="primary" if d == picked else "secondary",
-            ):
-                st.session_state[day_key] = d
-                st.rerun()
+                on_click=_set_day,
+                args=(day_key, d),
+            )
 
 
 def render_hour_lists_html(day_df: pd.DataFrame, multi: bool) -> str:
@@ -995,6 +1012,8 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
             day_key = "day_select_multi"
             if day_key not in st.session_state or st.session_state[day_key] not in available_days:
                 st.session_state[day_key] = available_days[-1]
+            # Used by ←/→ on_click callbacks (must update widget key before selectbox runs).
+            st.session_state["_nav_days"] = available_days
 
             day_counts = (
                 plant_df.groupby("date").size().to_dict()
@@ -1006,15 +1025,15 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
             day_idx = available_days.index(st.session_state[day_key])
             prev_col, mid_col, next_col = st.columns([1, 4, 1], gap="small")
             with prev_col:
-                if st.button(
+                st.button(
                     "←",
                     disabled=day_idx <= 0,
                     use_container_width=True,
                     key="prev_day_multi",
                     help="Previous day with readings",
-                ):
-                    st.session_state[day_key] = available_days[day_idx - 1]
-                    st.rerun()
+                    on_click=_nudge_day,
+                    args=(day_key, -1),
+                )
             with mid_col:
                 st.selectbox(
                     "Day",
@@ -1024,15 +1043,15 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
                     key=day_key,
                 )
             with next_col:
-                if st.button(
+                st.button(
                     "→",
                     disabled=day_idx >= len(available_days) - 1,
                     use_container_width=True,
                     key="next_day_multi",
                     help="Next day with readings",
-                ):
-                    st.session_state[day_key] = available_days[day_idx + 1]
-                    st.rerun()
+                    on_click=_nudge_day,
+                    args=(day_key, 1),
+                )
 
             picked = st.session_state[day_key]
             if len(available_days) == 1:
