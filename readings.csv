@@ -1161,3 +1161,12 @@ timestamp,plant_id,plant_name,raw_value,moisture_percentage,status_category
 2026-08-07 22:30:01,1,Gynura Aurantiaca,1565,75.0,Optimal
 2026-08-07 22:30:01,2,Tradescantia Zebrina,1323,85.0,Soggy
 2026-08-07 22:30:02,3,Monstera Deliciosa,1632,72.0,Optimal
+2026-08-07 23:00:02,1,Gynura Aurantiaca,1553,75.0,Optimal
+2026-08-07 23:00:02,2,Tradescantia Zebrina,1329,85.0,Soggy
+2026-08-07 23:00:04,3,Monstera Deliciosa,1642,72.0,Optimal
+2026-08-07 23:30:01,1,Gynura Aurantiaca,1562,75.0,Optimal
+2026-08-07 23:30:01,2,Tradescantia Zebrina,1317,86.0,Soggy
+2026-08-07 23:30:02,3,Monstera Deliciosa,1654,71.0,Optimal
+2026-08-08 00:00:00,2,Tradescantia Zebrina,1307,86.0,Soggy
+2026-08-08 00:00:01,1,Gynura Aurantiaca,1569,75.0,Optimal
+2026-08-08 00:00:02,3,Monstera Deliciosa,1641,72.0,Optimal
