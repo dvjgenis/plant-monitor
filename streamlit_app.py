@@ -344,8 +344,8 @@ div[data-testid="stSegmentedControl"] {
   color: #5a7262;
   padding: 0.55rem 0.7rem;
   border-radius: 10px;
-  background: rgba(196, 224, 122, 0.18);
-  border: 1px solid rgba(45, 90, 61, 0.12);
+  background: rgba(58, 159, 201, 0.12);
+  border: 1px solid rgba(58, 159, 201, 0.28);
 }
 
 .plant-swatch {
@@ -1045,6 +1045,44 @@ def _trends_y_axis() -> alt.Y:
     )
 
 
+WATERING_MARK_COLOR = "#3a9fc9"  # aqua — likely watering jumps on Trends charts
+
+
+def watering_jump_rows(daily_df: pd.DataFrame, threshold: float = 15.0) -> pd.DataFrame:
+    """Days where avg moisture jumped ≥ threshold vs the prior day (per plant)."""
+    rows = []
+    for _, group in daily_df.groupby("plant_id", sort=True):
+        group = group.sort_values("date")
+        prev = None
+        for _, row in group.iterrows():
+            if prev is not None:
+                jump = float(row["avg_moisture"]) - float(prev["avg_moisture"])
+                if jump >= threshold:
+                    rows.append(row)
+            prev = row
+    if not rows:
+        return pd.DataFrame(columns=daily_df.columns)
+    return pd.DataFrame(rows)
+
+
+def _watering_marks(jump_df: pd.DataFrame) -> alt.Chart | None:
+    if jump_df.empty:
+        return None
+    return (
+        alt.Chart(jump_df)
+        .mark_circle(size=110, color=WATERING_MARK_COLOR, stroke="#fffbf5", strokeWidth=2)
+        .encode(
+            x="yearmonthdate(date):T",
+            y="avg_moisture:Q",
+            tooltip=[
+                alt.Tooltip("plant_name:N", title="Plant"),
+                alt.Tooltip("date:T", title="Day", format="%b %d, %Y"),
+                alt.Tooltip("avg_moisture:Q", title="Avg %", format=".1f"),
+            ],
+        )
+    )
+
+
 def daily_trends_chart(
     daily_df: pd.DataFrame,
     mode: str | None = None,
@@ -1060,6 +1098,8 @@ def daily_trends_chart(
         domain_start, domain_end = period_bounds(mode, period_start)
     x_enc = _trends_day_axis(daily_df, domain_start, domain_end)
     y_enc = _trends_y_axis()
+    jumps = watering_jump_rows(daily_df)
+    water_layer = _watering_marks(jumps)
 
     if daily_df["plant_id"].nunique() > 1:
         names = list(daily_df.sort_values("plant_id")["plant_name"].unique())
@@ -1087,8 +1127,11 @@ def daily_trends_chart(
         )
         line = base.mark_line(strokeWidth=2.5)
         points = base.mark_circle(size=60)
+        layers = [_band_rules(), line, points]
+        if water_layer is not None:
+            layers.append(water_layer)
         return (
-            alt.layer(_band_rules(), line, points)
+            alt.layer(*layers)
             .properties(height=280)
             .configure_view(strokeWidth=0)
             .configure_axis(
@@ -1120,8 +1163,11 @@ def daily_trends_chart(
             alt.Tooltip("reading_count:Q", title="Reads"),
         ],
     )
+    layers = [_band_rules(), band, line, points]
+    if water_layer is not None:
+        layers.append(water_layer)
     return (
-        alt.layer(_band_rules(), band, line, points)
+        alt.layer(*layers)
         .properties(height=280)
         .configure_view(strokeWidth=0)
         .configure_axis(

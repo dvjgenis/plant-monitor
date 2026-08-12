@@ -276,8 +276,8 @@
       color: var(--muted);
       padding: 0.55rem 0.7rem;
       border-radius: 10px;
-      background: rgba(196, 224, 122, 0.18);
-      border: 1px solid rgba(45, 90, 61, 0.12);
+      background: rgba(58, 159, 201, 0.12);
+      border: 1px solid rgba(58, 159, 201, 0.28);
     }
 
     #trends-panel { animation-delay: 0.1s; }
@@ -2575,7 +2575,7 @@
           ),
           pointHoverRadius: avgPoints.map((p) => (p.y == null ? 0 : 8)),
           pointBackgroundColor: avgPoints.map((p) =>
-            wateringPoints.has(`${plant.plant_id}:${p.date}`) ? "#c4e07a" : style.line
+            wateringPoints.has(`${plant.plant_id}:${p.date}`) ? "#3a9fc9" : style.line
           ),
           pointBorderColor: "#fffbf5",
           pointBorderWidth: 2,
