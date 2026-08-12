@@ -1625,25 +1625,15 @@ def multi_day_stats_html(day_df: pd.DataFrame) -> str:
 
 
 def day_label(day, today=None) -> str:
-    if today is None:
-        today = pd.Timestamp.now().date()
-    day = pd.Timestamp(day).date()
+    """Portfolio snapshot: always show calendar dates (no Today/Yesterday)."""
     ts = pd.Timestamp(day)
-    pretty = ts.strftime("%b ") + str(ts.day) + ts.strftime(", %Y")
-    if day == today:
-        return f"Today · {pretty}"
-    if day == today - pd.Timedelta(days=1):
-        return f"Yesterday · {pretty}"
-    return f"{ts.strftime('%a')} · {pretty}"
+    return f"{ts.strftime('%a')} · {ts.strftime('%b')} {ts.day}, {ts.year}"
 
 
-def short_day_label(day, today: date) -> str:
-    day = pd.Timestamp(day).date()
-    if day == today:
-        return "Today"
-    if day == today - pd.Timedelta(days=1):
-        return "Yesterday"
-    return pd.Timestamp(day).strftime("%a %b %d")
+def short_day_label(day, today: date | None = None) -> str:
+    """Compact chip label — calendar date only (Cloud is not a live clock)."""
+    ts = pd.Timestamp(day)
+    return f"{ts.strftime('%b')} {ts.day}"
 
 
 def _set_day(day_key: str, day: date) -> None:
@@ -1666,14 +1656,14 @@ def _nudge_day(day_key: str, delta: int) -> None:
 def render_day_chips(available_days: list, picked, counts: dict, today: date, day_key: str) -> None:
     # Oldest → newest left to right (most recent on the right).
     recent = list(available_days[-7:])
-    # With only one day, the chip duplicates the selectbox and reads like "Yesterday · 3".
+    # With only one day, the chip duplicates the selectbox.
     if not recent or len(available_days) <= 1:
         return
     render_html('<div class="day-chips-anchor" aria-hidden="true"></div>')
     cols = st.columns(len(recent))
     for col, d in zip(cols, recent):
         with col:
-            label = f"{short_day_label(d, today)} · {counts.get(d, 0)}"
+            label = f"{short_day_label(d)} · {counts.get(d, 0)}"
             st.button(
                 label,
                 key=f"day_chip_{d}",
