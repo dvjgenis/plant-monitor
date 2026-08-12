@@ -2553,6 +2553,7 @@
             min: d.min_moisture,
             max: d.max_moisture,
             plant_name: plant.name,
+            likely_watered: wateringPoints.has(`${plant.plant_id}:${date}`),
           };
         });
 
@@ -2662,6 +2663,7 @@
                   if (raw.min != null && raw.max != null && raw.min !== raw.max) {
                     line += ` (${raw.min.toFixed(1)}–${raw.max.toFixed(1)}%)`;
                   }
+                  if (raw.likely_watered) line += " · Likely watered";
                   return line;
                 },
               },

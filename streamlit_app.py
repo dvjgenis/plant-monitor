@@ -1058,11 +1058,30 @@ def watering_jump_rows(daily_df: pd.DataFrame, threshold: float = 15.0) -> pd.Da
             if prev is not None:
                 jump = float(row["avg_moisture"]) - float(prev["avg_moisture"])
                 if jump >= threshold:
-                    rows.append(row)
+                    item = row.copy()
+                    item["watering_note"] = f"Likely watered (+{jump:.0f}%)"
+                    rows.append(item)
             prev = row
     if not rows:
-        return pd.DataFrame(columns=daily_df.columns)
+        cols = list(daily_df.columns) + ["watering_note"]
+        return pd.DataFrame(columns=cols)
     return pd.DataFrame(rows)
+
+
+def _mark_likely_watered(daily_df: pd.DataFrame, jumps: pd.DataFrame) -> pd.DataFrame:
+    out = daily_df.copy()
+    out["watering_note"] = ""
+    if jumps.empty:
+        return out
+    notes = {
+        (int(r["plant_id"]), pd.Timestamp(r["date"]).normalize()): str(r["watering_note"])
+        for _, r in jumps.iterrows()
+    }
+    out["watering_note"] = [
+        notes.get((int(pid), pd.Timestamp(dt).normalize()), "")
+        for pid, dt in zip(out["plant_id"], out["date"])
+    ]
+    return out
 
 
 def _watering_marks(jump_df: pd.DataFrame) -> alt.Chart | None:
@@ -1078,6 +1097,7 @@ def _watering_marks(jump_df: pd.DataFrame) -> alt.Chart | None:
                 alt.Tooltip("plant_name:N", title="Plant"),
                 alt.Tooltip("date:T", title="Day", format="%b %d, %Y"),
                 alt.Tooltip("avg_moisture:Q", title="Avg %", format=".1f"),
+                alt.Tooltip("watering_note:N", title="Event"),
             ],
         )
     )
@@ -1099,7 +1119,18 @@ def daily_trends_chart(
     x_enc = _trends_day_axis(daily_df, domain_start, domain_end)
     y_enc = _trends_y_axis()
     jumps = watering_jump_rows(daily_df)
+    daily_df = _mark_likely_watered(daily_df, jumps)
     water_layer = _watering_marks(jumps)
+
+    point_tooltips = [
+        alt.Tooltip("plant_name:N", title="Plant"),
+        alt.Tooltip("date:T", title="Day", format="%b %d, %Y"),
+        alt.Tooltip("avg_moisture:Q", title="Avg %", format=".1f"),
+        alt.Tooltip("min_moisture:Q", title="Low %", format=".1f"),
+        alt.Tooltip("max_moisture:Q", title="High %", format=".1f"),
+        alt.Tooltip("reading_count:Q", title="Reads"),
+        alt.Tooltip("watering_note:N", title="Event"),
+    ]
 
     if daily_df["plant_id"].nunique() > 1:
         names = list(daily_df.sort_values("plant_id")["plant_name"].unique())
@@ -1116,14 +1147,7 @@ def daily_trends_chart(
                 scale=alt.Scale(domain=names, range=colors),
                 legend=None,
             ),
-            tooltip=[
-                alt.Tooltip("plant_name:N", title="Plant"),
-                alt.Tooltip("date:T", title="Day", format="%b %d, %Y"),
-                alt.Tooltip("avg_moisture:Q", title="Avg %", format=".1f"),
-                alt.Tooltip("min_moisture:Q", title="Low %", format=".1f"),
-                alt.Tooltip("max_moisture:Q", title="High %", format=".1f"),
-                alt.Tooltip("reading_count:Q", title="Reads"),
-            ],
+            tooltip=point_tooltips,
         )
         line = base.mark_line(strokeWidth=2.5)
         points = base.mark_circle(size=60)
@@ -1161,6 +1185,7 @@ def daily_trends_chart(
             alt.Tooltip("min_moisture:Q", title="Low %", format=".1f"),
             alt.Tooltip("max_moisture:Q", title="High %", format=".1f"),
             alt.Tooltip("reading_count:Q", title="Reads"),
+            alt.Tooltip("watering_note:N", title="Event"),
         ],
     )
     layers = [_band_rules(), band, line, points]
