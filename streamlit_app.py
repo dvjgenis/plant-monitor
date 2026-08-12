@@ -235,8 +235,8 @@ p.gauge-blurb .fact {
 }
 
 .intro {
-  margin: 0.35rem 0 1.1rem;
-  padding: 0.85rem 1.1rem;
+  margin: 0.25rem 0 0.85rem;
+  padding: 0.7rem 0.95rem;
   border-radius: 14px;
   border: 1px solid rgba(45, 90, 61, 0.14);
   background: rgba(255, 252, 247, 0.72);
@@ -248,8 +248,8 @@ p.gauge-blurb .fact {
 
 .intro p {
   margin: 0;
-  font-size: 0.84rem;
-  line-height: 1.5;
+  font-size: 0.8rem;
+  line-height: 1.45;
   color: #5a7262;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -259,7 +259,7 @@ p.gauge-blurb .fact {
 
 .day-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
   gap: 0.5rem;
   margin: 0.35rem 0 0.85rem;
 }
@@ -384,6 +384,61 @@ div[data-testid="stHorizontalBlock"] div[data-testid="column"] button[kind="seco
   border-radius: 999px;
   font-weight: 600;
   font-size: 0.78rem;
+}
+
+div[data-testid="stCaptionContainer"] p {
+  font-size: 0.76rem !important;
+  line-height: 1.4 !important;
+  margin-top: 0.15rem !important;
+}
+
+@media (max-width: 700px) {
+  .block-container {
+    padding-top: 1.5rem !important;
+    padding-bottom: 2rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  h1 {
+    font-size: 1.65rem !important;
+    margin-bottom: 0.15rem !important;
+  }
+
+  .legend {
+    gap: 0.35rem;
+    margin: 0.55rem 0 0.75rem;
+  }
+
+  .legend span {
+    font-size: 0.68rem;
+    padding: 0.26rem 0.5rem;
+  }
+
+  .panel-sub {
+    margin-bottom: 0.55rem;
+  }
+
+  div[data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"]) {
+    flex-direction: column !important;
+    gap: 0.85rem !important;
+  }
+
+  div[data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"])
+    > div[data-testid="column"] {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  div[data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"])
+    > div[data-testid="column"]:nth-child(2) {
+    order: -1;
+  }
+
+  div:has(> .day-chips-anchor) + div {
+    display: none !important;
+  }
 }
 </style>
 """
@@ -746,7 +801,7 @@ def day_chart_multi(day_df: pd.DataFrame) -> alt.Chart:
 
     return (
         alt.layer(_band_rules(), line, points, latest_point)
-        .properties(height=300)
+        .properties(height=260)
         .configure_view(strokeWidth=0)
         .configure_axis(
             gridColor="rgba(45, 90, 61, 0.1)",
@@ -841,10 +896,11 @@ def render_day_chips(available_days: list, picked, counts: dict, today: date, da
     # With only one day, the chip duplicates the selectbox and reads like "Yesterday · 3".
     if not recent or len(available_days) <= 1:
         return
+    render_html('<div class="day-chips-anchor" aria-hidden="true"></div>')
     cols = st.columns(len(recent))
     for col, d in zip(cols, recent):
         with col:
-            label = f"{short_day_label(d, today)} · {counts.get(d, 0)} reads"
+            label = f"{short_day_label(d, today)} · {counts.get(d, 0)}"
             st.button(
                 label,
                 key=f"day_chip_{d}",

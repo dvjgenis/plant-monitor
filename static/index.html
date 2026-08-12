@@ -38,9 +38,14 @@
 
     * { box-sizing: border-box; }
 
+    html {
+      overflow-x: hidden;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
+      overflow-x: hidden;
       font-family: var(--font-body);
       color: var(--ink);
       background:
@@ -64,6 +69,8 @@
       position: relative;
       z-index: 1;
       width: min(1120px, calc(100% - 2rem));
+      max-width: 100%;
+      min-width: 0;
       margin: 0 auto;
       padding: 1.75rem 0 3rem;
     }
@@ -74,10 +81,14 @@
       gap: 1.25rem;
       align-items: start;
       margin-bottom: 1.25rem;
+      min-width: 0;
+      max-width: 100%;
     }
 
     .viz-row > .panel {
       margin-bottom: 0;
+      min-width: 0;
+      max-width: 100%;
     }
 
     header.top {
@@ -233,6 +244,8 @@
       box-shadow: var(--shadow);
       animation: rise 0.55s ease 0.12s both;
       margin-bottom: 1.25rem;
+      min-width: 0;
+      max-width: 100%;
       transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
     }
 
@@ -306,9 +319,15 @@
       display: flex;
       gap: 0.45rem;
       overflow-x: auto;
+      overflow-y: hidden;
+      max-width: 100%;
+      min-width: 0;
       padding-bottom: 0.25rem;
       margin-bottom: 1rem;
       scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+      mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
     }
 
     .day-chip {
@@ -395,6 +414,11 @@
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
+      min-width: 0;
+      max-width: min(100%, 11rem);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .chart-legend i {
@@ -407,8 +431,15 @@
 
     .chart-wrap {
       height: 260px;
+      width: 100%;
+      max-width: 100%;
       position: relative;
+      overflow: hidden;
       animation: chartFade 0.45s ease both;
+    }
+
+    .chart-wrap canvas {
+      max-width: 100%;
     }
 
     .chart-wrap.multi {
@@ -684,21 +715,77 @@
       .viz-row {
         grid-template-columns: 1fr;
       }
+      #now-panel { order: -1; }
+      #day-panel { order: 1; }
     }
 
     @media (max-width: 640px) {
+      .shell {
+        width: 100%;
+        padding:
+          calc(1rem + env(safe-area-inset-top, 0px))
+          calc(0.85rem + env(safe-area-inset-right, 0px))
+          calc(2rem + env(safe-area-inset-bottom, 0px))
+          calc(0.85rem + env(safe-area-inset-left, 0px));
+      }
+
       header.top {
         flex-direction: column;
         align-items: stretch;
+        margin-bottom: 1.25rem;
       }
+
       .toolbar {
         justify-content: flex-start;
+        width: 100%;
       }
-      .sync-meta { text-align: left; width: 100%; }
+
+      .toolbar .btn {
+        flex: 1 1 auto;
+        min-width: 0;
+        text-align: center;
+      }
+
+      .sync-meta { text-align: left; width: 100%; margin-right: 0; }
+
+      .legend {
+        gap: 0.35rem;
+        margin-bottom: 1rem;
+      }
+
+      .legend span {
+        font-size: 0.68rem;
+        padding: 0.28rem 0.55rem;
+      }
+
+      .panel {
+        padding: 1rem 0.95rem 1.1rem;
+      }
+
+      .panel-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+      }
+
+      .panel-head-actions {
+        justify-content: flex-start;
+      }
+
       .day-nav { flex-direction: column; align-items: stretch; }
+      .day-nav-main { min-width: 0; }
+      .day-label { min-width: 0; }
       .day-jump { justify-content: center; }
+
+      .chart-wrap { height: 210px; }
+      .chart-wrap.multi { height: 240px; }
+
       .hour-list li {
         grid-template-columns: 4.5rem 1fr auto;
+      }
+
+      .hour-columns {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -801,6 +888,7 @@
     };
 
     let chartInstance = null;
+    let lastTodayStr = "";
     let selectedPlantIds = new Set();
     let knownPlantIds = [];
     let selectionInitialized = false;
@@ -906,6 +994,21 @@
       });
     }
 
+    function formatDayChipLabel(dayStr, todayStr, count) {
+      const compact = window.matchMedia("(max-width: 640px)").matches;
+      if (dayStr === todayStr) return `Today · ${count}`;
+      const yesterday = addDays(todayStr, -1);
+      if (dayStr === yesterday) return `Yesterday · ${count}`;
+      if (compact) {
+        const short = parseDay(dayStr).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        });
+        return `${short} · ${count}`;
+      }
+      return `${formatDayTitle(dayStr, todayStr)} · ${count}`;
+    }
+
     function formatDayLong(dayStr) {
       return parseDay(dayStr).toLocaleDateString(undefined, {
         weekday: "long",
@@ -983,9 +1086,9 @@
       dayChips.innerHTML = availableDays
         .slice(0, 14)
         .map((item) => {
-          const label = formatDayTitle(item.date, todayStr);
+          const label = formatDayChipLabel(item.date, todayStr, item.reading_count);
           const active = item.date === selectedDay ? "active" : "";
-          return `<button type="button" class="day-chip ${active}" data-day="${item.date}">${label} · ${item.reading_count}</button>`;
+          return `<button type="button" class="day-chip ${active}" data-day="${item.date}">${label}</button>`;
         })
         .join("");
 
@@ -1089,6 +1192,7 @@
           availableDays = [];
         }
         const todayStr = histories[0]?.today || localDateString(new Date());
+        lastTodayStr = todayStr;
 
         updateDayControls(todayStr);
         renderDayChips(todayStr);
@@ -1589,6 +1693,15 @@
 
     loadDashboard();
     pollTimer = setInterval(() => loadDashboard(false), POLL_MS);
+
+    let resizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (chartInstance) chartInstance.resize();
+        if (lastTodayStr) renderDayChips(lastTodayStr);
+      }, 150);
+    });
   </script>
 </body>
 </html>
