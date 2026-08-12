@@ -1057,9 +1057,8 @@
         </div>
 
         <div class="range-chips" id="range-chips" aria-label="Date range">
-          <button type="button" class="range-chip" data-range="7">7 days</button>
-          <button type="button" class="range-chip" data-range="14">14 days</button>
-          <button type="button" class="range-chip active" data-range="all">All</button>
+          <button type="button" class="range-chip active" data-range="week">Week</button>
+          <button type="button" class="range-chip" data-range="month">Month</button>
         </div>
 
         <div class="chart-legend" id="trends-chart-legend" hidden></div>
@@ -1126,7 +1125,10 @@
     let availableDays = [];
     let pollTimer = null;
     let activeView = sessionStorage.getItem("activeView") || "today";
-    let trendsRange = sessionStorage.getItem("trendsRange") || "all";
+    let trendsRange = (() => {
+      const saved = sessionStorage.getItem("trendsRange");
+      return saved === "month" || saved === "week" ? saved : "week";
+    })();
     let dailyPayload = null;
 
     const refreshBtn = document.getElementById("refresh-btn");
@@ -1982,9 +1984,13 @@
     function filterDaysByRange(allDays) {
       if (!allDays.length) return [];
       const sorted = [...allDays].sort((a, b) => a.date.localeCompare(b.date));
-      if (trendsRange === "all") return sorted;
-      const n = trendsRange === "7" ? 7 : 14;
-      return sorted.slice(-n);
+      const end = parseDay(sorted[sorted.length - 1].date);
+      const windowDays = trendsRange === "month" ? 30 : 7;
+      const start = new Date(end);
+      start.setDate(start.getDate() - (windowDays - 1));
+      const startStr = localDateString(start);
+      const endStr = localDateString(end);
+      return sorted.filter((d) => d.date >= startStr && d.date <= endStr);
     }
 
     function mergeSelectedDaily(plants) {

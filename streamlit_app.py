@@ -895,15 +895,18 @@ def build_daily_summary(plant_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def filter_daily_range(daily_df: pd.DataFrame, range_key: str) -> pd.DataFrame:
+    """Keep one fixed window ending on the latest day with data."""
     if daily_df.empty:
         return daily_df
     dates = sorted(daily_df["date"].unique())
-    if range_key == "7":
-        keep = set(dates[-7:])
-    elif range_key == "14":
-        keep = set(dates[-14:])
+    end = pd.Timestamp(dates[-1]).date()
+    if range_key == "month":
+        start = end - pd.Timedelta(days=29)
     else:
-        keep = set(dates)
+        # Default: week (7 calendar days inclusive)
+        start = end - pd.Timedelta(days=6)
+    start = start.date() if hasattr(start, "date") else start
+    keep = {d for d in dates if start <= pd.Timestamp(d).date() <= end}
     return daily_df[daily_df["date"].isin(keep)].copy()
 
 
@@ -1303,15 +1306,18 @@ def render_trends_panel(
         st.warning("Not enough history for trends yet.")
         return
 
+    if st.session_state.get("trends_range") not in ("week", "month"):
+        st.session_state.trends_range = "week"
+
     range_key = st.segmented_control(
         "Range",
-        options=["7", "14", "all"],
-        format_func=lambda x: {"7": "7 days", "14": "14 days", "all": "All"}[x],
-        default="all",
+        options=["week", "month"],
+        format_func=lambda x: {"week": "Week", "month": "Month"}[x],
+        default="week",
         label_visibility="collapsed",
         key="trends_range",
     )
-    daily_df = filter_daily_range(daily_all, range_key or "all")
+    daily_df = filter_daily_range(daily_all, range_key or "week")
     if daily_df.empty:
         st.warning("No readings in the selected range.")
         return
