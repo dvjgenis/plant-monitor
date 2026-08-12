@@ -508,8 +508,8 @@
       margin-bottom: 1rem;
       scrollbar-width: thin;
       -webkit-overflow-scrolling: touch;
-      mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
-      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+      mask-image: linear-gradient(to left, #000 calc(100% - 1.5rem), transparent);
+      -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 1.5rem), transparent);
     }
 
     .day-chip {
@@ -1403,8 +1403,9 @@
         dayChips.innerHTML = "";
         return;
       }
-      dayChips.innerHTML = availableDays
-        .slice(0, 14)
+      // availableDays is newest-first; reverse so oldest is left, most recent right.
+      const chips = availableDays.slice(0, 14).slice().reverse();
+      dayChips.innerHTML = chips
         .map((item) => {
           const label = formatDayChipLabel(item.date, todayStr, item.reading_count);
           const active = item.date === selectedDay ? "active" : "";
@@ -1418,6 +1419,8 @@
           loadDashboard(true);
         });
       });
+      // Keep the newest (rightmost) chips in view.
+      dayChips.scrollLeft = dayChips.scrollWidth;
     }
 
     async function wipeData() {

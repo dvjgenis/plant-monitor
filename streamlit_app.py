@@ -1664,7 +1664,8 @@ def _nudge_day(day_key: str, delta: int) -> None:
 
 
 def render_day_chips(available_days: list, picked, counts: dict, today: date, day_key: str) -> None:
-    recent = list(reversed(available_days[-7:]))
+    # Oldest → newest left to right (most recent on the right).
+    recent = list(available_days[-7:])
     # With only one day, the chip duplicates the selectbox and reads like "Yesterday · 3".
     if not recent or len(available_days) <= 1:
         return
