@@ -2,7 +2,7 @@
 
 import html
 import textwrap
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import altair as alt
@@ -894,20 +894,80 @@ def build_daily_summary(plant_df: pd.DataFrame) -> pd.DataFrame:
     return daily
 
 
-def filter_daily_range(daily_df: pd.DataFrame, range_key: str) -> pd.DataFrame:
-    """Keep one fixed window ending on the latest day with data."""
+def _as_date(value) -> date:
+    return pd.Timestamp(value).date()
+
+
+def week_sunday(d: date) -> date:
+    """Sunday that starts the calendar week containing d."""
+    d = _as_date(d)
+    return d - timedelta(days=(d.weekday() + 1) % 7)
+
+
+def week_end_saturday(sunday: date) -> date:
+    return _as_date(sunday) + timedelta(days=6)
+
+
+def month_start(d: date) -> date:
+    d = _as_date(d)
+    return date(d.year, d.month, 1)
+
+
+def month_end(d: date) -> date:
+    d = _as_date(d)
+    return (pd.Timestamp(d) + pd.offsets.MonthEnd(0)).date()
+
+
+def available_weeks(dates) -> list[date]:
+    """Unique Sunday starts for weeks that have at least one reading, oldest→newest."""
+    return sorted({week_sunday(d) for d in dates})
+
+
+def available_months(dates) -> list[date]:
+    """Unique month starts (1st) for months that have at least one reading."""
+    return sorted({month_start(d) for d in dates})
+
+
+def _fmt_day(d: date) -> str:
+    return f"{pd.Timestamp(d).strftime('%b')} {d.day}"
+
+
+def period_label(mode: str, period_start: date) -> str:
+    if mode == "month":
+        return pd.Timestamp(period_start).strftime("%B %Y")
+    end = week_end_saturday(period_start)
+    if period_start.month == end.month and period_start.year == end.year:
+        return f"Sun {_fmt_day(period_start)} – Sat {end.day}, {end.year}"
+    return f"Sun {_fmt_day(period_start)} – Sat {_fmt_day(end)}, {end.year}"
+
+
+def filter_daily_period(
+    daily_df: pd.DataFrame, mode: str, period_start: date
+) -> pd.DataFrame:
+    """Keep rows inside one calendar week (Sun–Sat) or one calendar month."""
     if daily_df.empty:
         return daily_df
-    dates = sorted(daily_df["date"].unique())
-    end = pd.Timestamp(dates[-1]).date()
-    if range_key == "month":
-        start = end - pd.Timedelta(days=29)
+    start = _as_date(period_start)
+    if mode == "month":
+        end = month_end(start)
+        start = month_start(start)
     else:
-        # Default: week (7 calendar days inclusive)
-        start = end - pd.Timedelta(days=6)
-    start = start.date() if hasattr(start, "date") else start
-    keep = {d for d in dates if start <= pd.Timestamp(d).date() <= end}
-    return daily_df[daily_df["date"].isin(keep)].copy()
+        start = week_sunday(start)
+        end = week_end_saturday(start)
+
+    mask = daily_df["date"].map(_as_date).between(start, end)
+    return daily_df.loc[mask].copy()
+
+
+def _nudge_period(period_key: str, periods_key: str, delta: int) -> None:
+    periods = st.session_state.get(periods_key) or []
+    current = st.session_state.get(period_key)
+    if not periods or current not in periods:
+        return
+    idx = periods.index(current)
+    new_idx = idx + delta
+    if 0 <= new_idx < len(periods):
+        st.session_state[period_key] = periods[new_idx]
 
 
 def _trends_day_axis(daily_df: pd.DataFrame) -> alt.X:
@@ -1292,7 +1352,7 @@ def render_trends_panel(
 ) -> None:
     render_html('<p class="panel-title">Daily trends</p>')
     render_html(
-        '<p class="panel-sub">Daily average moisture · range band for one plant</p>'
+        '<p class="panel-sub">Calendar week (Sun–Sat) or full month · daily averages</p>'
     )
 
     if not picked_plants:
@@ -1309,7 +1369,7 @@ def render_trends_panel(
     if st.session_state.get("trends_range") not in ("week", "month"):
         st.session_state.trends_range = "week"
 
-    range_key = st.segmented_control(
+    mode = st.segmented_control(
         "Range",
         options=["week", "month"],
         format_func=lambda x: {"week": "Week", "month": "Month"}[x],
@@ -1317,17 +1377,67 @@ def render_trends_panel(
         label_visibility="collapsed",
         key="trends_range",
     )
-    daily_df = filter_daily_range(daily_all, range_key or "week")
-    if daily_df.empty:
+    mode = mode or "week"
+
+    all_dates = [_as_date(d) for d in daily_all["date"].unique()]
+    periods = available_months(all_dates) if mode == "month" else available_weeks(all_dates)
+    if not periods:
         st.warning("No readings in the selected range.")
+        return
+
+    period_key = f"trends_period_{mode}"
+    periods_key = f"_trends_periods_{mode}"
+    st.session_state[periods_key] = periods
+    if (
+        period_key not in st.session_state
+        or st.session_state[period_key] not in periods
+    ):
+        st.session_state[period_key] = periods[-1]
+
+    period_start = st.session_state[period_key]
+    period_idx = periods.index(period_start)
+
+    prev_col, mid_col, next_col = st.columns([1, 5, 1], gap="small")
+    with prev_col:
+        st.button(
+            "←",
+            disabled=period_idx <= 0,
+            use_container_width=True,
+            key=f"prev_trends_{mode}",
+            help="Previous period",
+            on_click=_nudge_period,
+            args=(period_key, periods_key, -1),
+        )
+    with mid_col:
+        st.markdown(
+            f"<p style='text-align:center;margin:0.45rem 0 0;font-family:Fraunces,Georgia,serif;"
+            f"font-weight:600;font-size:1.05rem;color:#1a2e22;'>"
+            f"{html.escape(period_label(mode, period_start))}</p>",
+            unsafe_allow_html=True,
+        )
+    with next_col:
+        st.button(
+            "→",
+            disabled=period_idx >= len(periods) - 1,
+            use_container_width=True,
+            key=f"next_trends_{mode}",
+            help="Next period",
+            on_click=_nudge_period,
+            args=(period_key, periods_key, 1),
+        )
+
+    period_start = st.session_state[period_key]
+    daily_df = filter_daily_period(daily_all, mode, period_start)
+    if daily_df.empty:
+        st.warning("No readings in this period.")
         return
 
     n_days = daily_df["date"].nunique()
     if len(selected_ids) == 1:
-        st.caption(f"{picked_plants[0]} · {n_days} day{'s' if n_days != 1 else ''}")
+        st.caption(f"{picked_plants[0]} · {n_days} day{'s' if n_days != 1 else ''} with readings")
     else:
         st.caption(
-            f"{len(selected_ids)} plants · {n_days} day{'s' if n_days != 1 else ''}"
+            f"{len(selected_ids)} plants · {n_days} day{'s' if n_days != 1 else ''} with readings"
         )
 
     insights = compute_trends_insights(daily_df, scoped_df)

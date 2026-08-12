@@ -1061,6 +1061,17 @@
           <button type="button" class="range-chip" data-range="month">Month</button>
         </div>
 
+        <div class="day-nav" id="period-nav">
+          <div class="day-nav-main">
+            <button class="btn btn-icon" id="prev-period" type="button" aria-label="Previous period">‹</button>
+            <div class="day-label">
+              <strong id="period-title">—</strong>
+              <span id="period-sub">Calendar period</span>
+            </div>
+            <button class="btn btn-icon" id="next-period" type="button" aria-label="Next period">›</button>
+          </div>
+        </div>
+
         <div class="chart-legend" id="trends-chart-legend" hidden></div>
         <div class="chart-wrap" id="trends-chart-wrap">
           <canvas id="trendsChart" aria-label="Daily average moisture chart"></canvas>
@@ -1129,6 +1140,8 @@
       const saved = sessionStorage.getItem("trendsRange");
       return saved === "month" || saved === "week" ? saved : "week";
     })();
+    let selectedPeriodKey = sessionStorage.getItem("trendsPeriodKey") || "";
+    let availablePeriods = [];
     let dailyPayload = null;
 
     const refreshBtn = document.getElementById("refresh-btn");
@@ -1158,6 +1171,10 @@
     const insightStrip = document.getElementById("insight-strip");
     const statusMix = document.getElementById("status-mix");
     const wateringNote = document.getElementById("watering-note");
+    const prevPeriodBtn = document.getElementById("prev-period");
+    const nextPeriodBtn = document.getElementById("next-period");
+    const periodTitle = document.getElementById("period-title");
+    const periodSub = document.getElementById("period-sub");
 
     refreshBtn.addEventListener("click", () => loadDashboard(true));
     wipeBtn.addEventListener("click", wipeData);
@@ -1181,14 +1198,31 @@
     rangeChips.querySelectorAll(".range-chip").forEach((chip) => {
       chip.classList.toggle("active", chip.dataset.range === trendsRange);
       chip.addEventListener("click", () => {
+        if (trendsRange === chip.dataset.range) return;
         trendsRange = chip.dataset.range;
         sessionStorage.setItem("trendsRange", trendsRange);
+        selectedPeriodKey = "";
+        sessionStorage.removeItem("trendsPeriodKey");
         rangeChips.querySelectorAll(".range-chip").forEach((c) => {
           c.classList.toggle("active", c.dataset.range === trendsRange);
         });
         if (dailyPayload) renderTrendsView(dailyPayload);
       });
     });
+
+    prevPeriodBtn.addEventListener("click", () => shiftPeriod(-1));
+    nextPeriodBtn.addEventListener("click", () => shiftPeriod(1));
+
+    function shiftPeriod(delta) {
+      if (!availablePeriods.length || !selectedPeriodKey) return;
+      const idx = availablePeriods.indexOf(selectedPeriodKey);
+      if (idx < 0) return;
+      const next = idx + delta;
+      if (next < 0 || next >= availablePeriods.length) return;
+      selectedPeriodKey = availablePeriods[next];
+      sessionStorage.setItem("trendsPeriodKey", selectedPeriodKey);
+      if (dailyPayload) renderTrendsView(dailyPayload);
+    }
 
     function applyViewChrome() {
       viewTodayBtn.classList.toggle("active", activeView === "today");
@@ -1981,16 +2015,93 @@
       }
     }
 
+    function weekSunday(dateStr) {
+      const d = parseDay(dateStr);
+      const day = d.getDay(); // 0 = Sunday
+      d.setDate(d.getDate() - day);
+      return localDateString(d);
+    }
+
+    function weekSaturday(sundayStr) {
+      return addDays(sundayStr, 6);
+    }
+
+    function monthKey(dateStr) {
+      return dateStr.slice(0, 7); // YYYY-MM
+    }
+
+    function monthStart(key) {
+      return `${key}-01`;
+    }
+
+    function monthEnd(key) {
+      const [y, m] = key.split("-").map(Number);
+      const last = new Date(y, m, 0).getDate();
+      return `${key}-${String(last).padStart(2, "0")}`;
+    }
+
+    function buildAvailablePeriods(allDates) {
+      const sorted = [...allDates].sort();
+      if (!sorted.length) return [];
+      if (trendsRange === "month") {
+        return [...new Set(sorted.map(monthKey))];
+      }
+      return [...new Set(sorted.map(weekSunday))];
+    }
+
+    function periodBounds(periodKey) {
+      if (trendsRange === "month") {
+        return { start: monthStart(periodKey), end: monthEnd(periodKey) };
+      }
+      return { start: periodKey, end: weekSaturday(periodKey) };
+    }
+
+    function formatPeriodTitle(periodKey) {
+      if (trendsRange === "month") {
+        const d = parseDay(monthStart(periodKey));
+        return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+      }
+      const start = parseDay(periodKey);
+      const end = parseDay(weekSaturday(periodKey));
+      const startLabel = start.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const endLabel = end.toLocaleDateString(undefined, {
+        month: start.getMonth() === end.getMonth() ? undefined : "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      return `Sun ${startLabel} – Sat ${endLabel}`;
+    }
+
+    function updatePeriodControls() {
+      const idx = availablePeriods.indexOf(selectedPeriodKey);
+      prevPeriodBtn.disabled = idx <= 0;
+      nextPeriodBtn.disabled = idx < 0 || idx >= availablePeriods.length - 1;
+      if (!selectedPeriodKey) {
+        periodTitle.textContent = "—";
+        periodSub.textContent = "No period";
+        return;
+      }
+      periodTitle.textContent = formatPeriodTitle(selectedPeriodKey);
+      periodSub.textContent =
+        trendsRange === "month" ? "Calendar month" : "Sunday – Saturday";
+    }
+
     function filterDaysByRange(allDays) {
       if (!allDays.length) return [];
       const sorted = [...allDays].sort((a, b) => a.date.localeCompare(b.date));
-      const end = parseDay(sorted[sorted.length - 1].date);
-      const windowDays = trendsRange === "month" ? 30 : 7;
-      const start = new Date(end);
-      start.setDate(start.getDate() - (windowDays - 1));
-      const startStr = localDateString(start);
-      const endStr = localDateString(end);
-      return sorted.filter((d) => d.date >= startStr && d.date <= endStr);
+      const allDates = sorted.map((d) => d.date);
+      availablePeriods = buildAvailablePeriods(allDates);
+      if (!availablePeriods.length) {
+        selectedPeriodKey = "";
+        return [];
+      }
+      if (!selectedPeriodKey || !availablePeriods.includes(selectedPeriodKey)) {
+        selectedPeriodKey = availablePeriods[availablePeriods.length - 1];
+        sessionStorage.setItem("trendsPeriodKey", selectedPeriodKey);
+      }
+      const { start, end } = periodBounds(selectedPeriodKey);
+      updatePeriodControls();
+      return sorted.filter((d) => d.date >= start && d.date <= end);
     }
 
     function mergeSelectedDaily(plants) {
@@ -2279,7 +2390,10 @@
         trendsChartLegend.innerHTML = "";
       }
 
-      const fingerprint = trendsFingerprint(selected, filteredDates) + trendsRange;
+      const fingerprint =
+        trendsFingerprint(selected, filteredDates) +
+        trendsRange +
+        selectedPeriodKey;
       const unchanged = fingerprint === lastTrendsFingerprint && trendsChartInstance;
       if (unchanged) return;
 
