@@ -953,20 +953,21 @@ def period_label(mode: str, period_start: date) -> str:
     return f"Sun {_fmt_day(period_start)} – Sat {_fmt_day(end)}, {end.year}"
 
 
+def period_bounds(mode: str, period_start: date) -> tuple[date, date]:
+    start = _as_date(period_start)
+    if mode == "month":
+        return month_start(start), month_end(start)
+    start = week_sunday(start)
+    return start, week_end_saturday(start)
+
+
 def filter_daily_period(
     daily_df: pd.DataFrame, mode: str, period_start: date
 ) -> pd.DataFrame:
     """Keep rows inside one calendar week (Sun–Sat) or one calendar month."""
     if daily_df.empty:
         return daily_df
-    start = _as_date(period_start)
-    if mode == "month":
-        end = month_end(start)
-        start = month_start(start)
-    else:
-        start = week_sunday(start)
-        end = week_end_saturday(start)
-
+    start, end = period_bounds(mode, period_start)
     mask = daily_df["date"].map(_as_date).between(start, end)
     return daily_df.loc[mask].copy()
 
@@ -982,27 +983,57 @@ def _nudge_period(period_key: str, periods_key: str, delta: int) -> None:
         st.session_state[period_key] = periods[new_idx]
 
 
-def _trends_day_axis(daily_df: pd.DataFrame) -> alt.X:
+def _trends_day_axis(
+    daily_df: pd.DataFrame,
+    domain_start: date | None = None,
+    domain_end: date | None = None,
+) -> alt.X:
     """One tick label per calendar day (avoids Altair's half-day duplicate labels)."""
-    dates = sorted(pd.to_datetime(daily_df["date"]).dt.normalize().unique())
-    if len(dates) > 14:
-        step = max(1, (len(dates) - 1) // 10)
-        tick_values = list(dates[::step])
-        if tick_values[-1] != dates[-1]:
-            tick_values.append(dates[-1])
+    data_dates = sorted(pd.to_datetime(daily_df["date"]).dt.normalize().unique())
+    if domain_start is not None and domain_end is not None:
+        domain = [
+            pd.Timestamp(domain_start),
+            pd.Timestamp(domain_end),
+        ]
+        # Tick every day for a week; thin out for a long month.
+        span_days = (domain_end - domain_start).days + 1
+        all_ticks = list(pd.date_range(domain_start, domain_end, freq="D"))
+        if span_days > 14:
+            step = max(1, (span_days - 1) // 10)
+            tick_values = all_ticks[::step]
+            if tick_values[-1] != all_ticks[-1]:
+                tick_values = list(tick_values) + [all_ticks[-1]]
+        else:
+            tick_values = all_ticks
     else:
-        tick_values = list(dates)
+        domain = None
+        dates = data_dates
+        if len(dates) > 14:
+            step = max(1, (len(dates) - 1) // 10)
+            tick_values = list(dates[::step])
+            if tick_values[-1] != dates[-1]:
+                tick_values.append(dates[-1])
+        else:
+            tick_values = list(dates)
 
+    axis = alt.Axis(
+        format="%b %d",
+        labelAngle=-35,
+        values=tick_values,
+        labelOverlap=True,
+        tickCount=len(tick_values),
+    )
+    if domain is not None:
+        return alt.X(
+            "yearmonthdate(date):T",
+            title="Day",
+            scale=alt.Scale(domain=domain),
+            axis=axis,
+        )
     return alt.X(
         "yearmonthdate(date):T",
         title="Day",
-        axis=alt.Axis(
-            format="%b %d",
-            labelAngle=-35,
-            values=tick_values,
-            labelOverlap=True,
-            tickCount=len(tick_values),
-        ),
+        axis=axis,
     )
 
 
@@ -1014,13 +1045,20 @@ def _trends_y_axis() -> alt.Y:
     )
 
 
-def daily_trends_chart(daily_df: pd.DataFrame) -> alt.Chart:
+def daily_trends_chart(
+    daily_df: pd.DataFrame,
+    mode: str | None = None,
+    period_start: date | None = None,
+) -> alt.Chart:
     if daily_df.empty:
         return alt.Chart(pd.DataFrame()).mark_point()
 
     daily_df = daily_df.copy()
     daily_df["date"] = pd.to_datetime(daily_df["date"]).dt.normalize()
-    x_enc = _trends_day_axis(daily_df)
+    domain_start = domain_end = None
+    if mode and period_start is not None:
+        domain_start, domain_end = period_bounds(mode, period_start)
+    x_enc = _trends_day_axis(daily_df, domain_start, domain_end)
     y_enc = _trends_y_axis()
 
     if daily_df["plant_id"].nunique() > 1:
@@ -1471,7 +1509,10 @@ def render_trends_panel(
 
     insights = compute_trends_insights(daily_df, scoped_df)
     render_html(trends_insights_html(insights))
-    st.altair_chart(daily_trends_chart(daily_df), use_container_width=True)
+    st.altair_chart(
+        daily_trends_chart(daily_df, mode=mode, period_start=period_start),
+        use_container_width=True,
+    )
     render_html(status_mix_html(daily_df, scoped_df, insights))
     watering = detect_watering_notes(daily_df)
     if watering:

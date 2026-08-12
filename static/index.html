@@ -1135,12 +1135,15 @@
     let lastTrendsFingerprint = "";
     let availableDays = [];
     let pollTimer = null;
-    let activeView = sessionStorage.getItem("activeView") || "today";
+    let activeView = (() => {
+      const saved = sessionStorage.getItem("activeView");
+      return saved === "trends" ? "trends" : "today";
+    })();
     let trendsRange = (() => {
       const saved = sessionStorage.getItem("trendsRange");
       return saved === "month" || saved === "week" ? saved : "week";
     })();
-    let selectedPeriodKey = sessionStorage.getItem("trendsPeriodKey") || "";
+    let selectedPeriodKey = sessionStorage.getItem(`trendsPeriodKey_${trendsRange === "month" ? "month" : "week"}`) || "";
     let availablePeriods = [];
     let dailyPayload = null;
 
@@ -1201,8 +1204,8 @@
         if (trendsRange === chip.dataset.range) return;
         trendsRange = chip.dataset.range;
         sessionStorage.setItem("trendsRange", trendsRange);
-        selectedPeriodKey = "";
-        sessionStorage.removeItem("trendsPeriodKey");
+        selectedPeriodKey =
+          sessionStorage.getItem(`trendsPeriodKey_${trendsRange}`) || "";
         rangeChips.querySelectorAll(".range-chip").forEach((c) => {
           c.classList.toggle("active", c.dataset.range === trendsRange);
         });
@@ -1213,6 +1216,12 @@
     prevPeriodBtn.addEventListener("click", () => shiftPeriod(-1));
     nextPeriodBtn.addEventListener("click", () => shiftPeriod(1));
 
+    function persistPeriodKey() {
+      if (selectedPeriodKey) {
+        sessionStorage.setItem(`trendsPeriodKey_${trendsRange}`, selectedPeriodKey);
+      }
+    }
+
     function shiftPeriod(delta) {
       if (!availablePeriods.length || !selectedPeriodKey) return;
       const idx = availablePeriods.indexOf(selectedPeriodKey);
@@ -1220,7 +1229,7 @@
       const next = idx + delta;
       if (next < 0 || next >= availablePeriods.length) return;
       selectedPeriodKey = availablePeriods[next];
-      sessionStorage.setItem("trendsPeriodKey", selectedPeriodKey);
+      persistPeriodKey();
       if (dailyPayload) renderTrendsView(dailyPayload);
     }
 
@@ -2056,21 +2065,16 @@
     function clampPeriodKey(periods) {
       if (!periods.length) {
         selectedPeriodKey = "";
-        sessionStorage.removeItem("trendsPeriodKey");
         return;
       }
       if (!selectedPeriodKey || !periods.includes(selectedPeriodKey)) {
-        // Prefer latest period; never earlier than first tracking week/month.
         selectedPeriodKey = periods[periods.length - 1];
-      } else {
-        const idx = periods.indexOf(selectedPeriodKey);
-        if (idx < 0) selectedPeriodKey = periods[periods.length - 1];
-        else if (selectedPeriodKey < periods[0]) selectedPeriodKey = periods[0];
-        else if (selectedPeriodKey > periods[periods.length - 1]) {
-          selectedPeriodKey = periods[periods.length - 1];
-        }
+      } else if (selectedPeriodKey < periods[0]) {
+        selectedPeriodKey = periods[0];
+      } else if (selectedPeriodKey > periods[periods.length - 1]) {
+        selectedPeriodKey = periods[periods.length - 1];
       }
-      sessionStorage.setItem("trendsPeriodKey", selectedPeriodKey);
+      persistPeriodKey();
     }
 
     function periodBounds(periodKey) {
@@ -2078,6 +2082,18 @@
         return { start: monthStart(periodKey), end: monthEnd(periodKey) };
       }
       return { start: periodKey, end: weekSaturday(periodKey) };
+    }
+
+    function enumeratePeriodDates(periodKey) {
+      if (!periodKey) return [];
+      const { start, end } = periodBounds(periodKey);
+      const dates = [];
+      let cur = start;
+      while (cur <= end) {
+        dates.push(cur);
+        cur = addDays(cur, 1);
+      }
+      return dates;
     }
 
     function formatPeriodTitle(periodKey) {
@@ -2405,7 +2421,7 @@
       const wateringNotes = detectWateringJumps(selected, filteredDates);
       if (wateringNotes.length) {
         wateringNote.hidden = false;
-        wateringNote.textContent = `Likely watered: ${wateringNotes.map(escapeHtml).join(" · ")}`;
+        wateringNote.textContent = `Likely watered: ${wateringNotes.join(" · ")}`;
       } else {
         wateringNote.hidden = true;
       }
@@ -2425,10 +2441,14 @@
         trendsChartLegend.innerHTML = "";
       }
 
+      const axisDates = selectedPeriodKey
+        ? enumeratePeriodDates(selectedPeriodKey)
+        : filteredDates;
       const fingerprint =
         trendsFingerprint(selected, filteredDates) +
         trendsRange +
-        selectedPeriodKey;
+        selectedPeriodKey +
+        axisDates.join(",");
       const unchanged = fingerprint === lastTrendsFingerprint && trendsChartInstance;
       if (unchanged) return;
 
@@ -2470,37 +2490,35 @@
 
       const datasets = [];
       const wateringPoints = new Set();
+      const dataByPlantDate = new Map();
 
       for (const plant of selected) {
-        const style = plantStyle(plant.plant_id);
-        const days = (plant.days || [])
-          .filter((d) => filteredDates.includes(d.date))
-          .sort((a, b) => a.date.localeCompare(b.date));
-
-        const avgPoints = days.map((d) => ({
-          x: dateToIndex(d.date, filteredDates),
-          y: d.avg_moisture,
-          date: d.date,
-          min: d.min_moisture,
-          max: d.max_moisture,
-          plant_name: plant.name,
-        }));
-
+        const map = new Map();
+        for (const d of plant.days || []) {
+          if (filteredDates.includes(d.date)) map.set(d.date, d);
+        }
+        dataByPlantDate.set(plant.plant_id, map);
+        const days = [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
         for (let i = 1; i < days.length; i++) {
           if (days[i].avg_moisture - days[i - 1].avg_moisture >= 15) {
             wateringPoints.add(`${plant.plant_id}:${days[i].date}`);
           }
         }
+      }
 
-        if (selected.length === 1 && days.length) {
-          const minPoints = days.map((d) => ({
-            x: dateToIndex(d.date, filteredDates),
-            y: d.min_moisture,
-          }));
-          const maxPoints = days.map((d) => ({
-            x: dateToIndex(d.date, filteredDates),
-            y: d.max_moisture,
-          }));
+      for (const plant of selected) {
+        const style = plantStyle(plant.plant_id);
+        const dayMap = dataByPlantDate.get(plant.plant_id);
+
+        if (selected.length === 1) {
+          const minPoints = axisDates.map((date, idx) => {
+            const d = dayMap.get(date);
+            return { x: idx, y: d ? d.min_moisture : null };
+          });
+          const maxPoints = axisDates.map((date, idx) => {
+            const d = dayMap.get(date);
+            return { x: idx, y: d ? d.max_moisture : null };
+          });
           datasets.push({
             label: "Daily min",
             data: minPoints,
@@ -2509,6 +2527,7 @@
             pointRadius: 0,
             fill: false,
             tension: 0.35,
+            spanGaps: true,
             order: 3,
           });
           datasets.push({
@@ -2519,9 +2538,23 @@
             pointRadius: 0,
             fill: "-1",
             tension: 0.35,
+            spanGaps: true,
             order: 2,
           });
         }
+
+        const avgPoints = axisDates.map((date, idx) => {
+          const d = dayMap.get(date);
+          if (!d) return { x: idx, y: null, date };
+          return {
+            x: idx,
+            y: d.avg_moisture,
+            date,
+            min: d.min_moisture,
+            max: d.max_moisture,
+            plant_name: plant.name,
+          };
+        });
 
         datasets.push({
           label: plant.name,
@@ -2532,10 +2565,15 @@
           fill: selected.length === 1,
           tension: 0.35,
           borderWidth: 2.5,
+          spanGaps: true,
           pointRadius: avgPoints.map((p) =>
-            wateringPoints.has(`${plant.plant_id}:${p.date}`) ? 7 : 4
+            p.y == null
+              ? 0
+              : wateringPoints.has(`${plant.plant_id}:${p.date}`)
+                ? 7
+                : 4
           ),
-          pointHoverRadius: 8,
+          pointHoverRadius: avgPoints.map((p) => (p.y == null ? 0 : 8)),
           pointBackgroundColor: avgPoints.map((p) =>
             wateringPoints.has(`${plant.plant_id}:${p.date}`) ? "#c4e07a" : style.line
           ),
@@ -2544,6 +2582,9 @@
           order: 1,
         });
       }
+
+      const tickStep =
+        axisDates.length > 14 ? Math.max(1, Math.floor((axisDates.length - 1) / 10)) : 1;
 
       trendsChartInstance = new Chart(ctx, {
         type: "line",
@@ -2568,7 +2609,7 @@
             x: {
               type: "linear",
               min: -0.3,
-              max: Math.max(filteredDates.length - 0.7, 0.3),
+              max: Math.max(axisDates.length - 0.7, 0.3),
               offset: false,
               grid: { color: "rgba(45, 90, 61, 0.06)" },
               ticks: {
@@ -2580,8 +2621,11 @@
                 minRotation: 0,
                 callback: (value) => {
                   const idx = Math.round(value);
-                  if (idx !== value || idx < 0 || idx >= filteredDates.length) return "";
-                  return formatShortDate(filteredDates[idx]);
+                  if (idx !== value || idx < 0 || idx >= axisDates.length) return "";
+                  if (tickStep > 1 && idx !== axisDates.length - 1 && idx % tickStep !== 0) {
+                    return "";
+                  }
+                  return formatShortDate(axisDates[idx]);
                 },
               },
               border: { display: false },
@@ -2597,18 +2641,22 @@
               bodyFont: { family: "Manrope", size: 12 },
               padding: { top: 10, right: 12, bottom: 10, left: 12 },
               cornerRadius: 10,
+              filter: (item) =>
+                item.parsed?.y != null &&
+                !["Daily min", "Daily range"].includes(item.dataset.label),
               callbacks: {
                 title: (items) => {
                   const raw = items[0]?.raw;
                   if (raw?.date) return formatShortDate(raw.date);
                   const idx = Math.round(items[0]?.parsed?.x ?? -1);
-                  if (idx >= 0 && idx < filteredDates.length) {
-                    return formatShortDate(filteredDates[idx]);
+                  if (idx >= 0 && idx < axisDates.length) {
+                    return formatShortDate(axisDates[idx]);
                   }
                   return "";
                 },
                 label: (ctx) => {
-                  if (ctx.dataset.label === "Daily range") return null;
+                  if (ctx.parsed?.y == null) return null;
+                  if (["Daily min", "Daily range"].includes(ctx.dataset.label)) return null;
                   const raw = ctx.raw || {};
                   let line = `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}% avg`;
                   if (raw.min != null && raw.max != null && raw.min !== raw.max) {
@@ -2617,8 +2665,6 @@
                   return line;
                 },
               },
-              filter: (item) =>
-                !["Daily min", "Daily range"].includes(item.dataset.label),
             },
           },
         },
