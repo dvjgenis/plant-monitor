@@ -919,13 +919,25 @@ def month_end(d: date) -> date:
 
 
 def available_weeks(dates) -> list[date]:
-    """Unique Sunday starts for weeks that have at least one reading, oldest→newest."""
-    return sorted({week_sunday(d) for d in dates})
+    """Sunday starts for weeks that have readings, from first tracking week → latest."""
+    if not dates:
+        return []
+    normalized = sorted({_as_date(d) for d in dates})
+    first = week_sunday(normalized[0])
+    last = week_sunday(normalized[-1])
+    sundays = sorted({week_sunday(d) for d in normalized})
+    return [s for s in sundays if first <= s <= last]
 
 
 def available_months(dates) -> list[date]:
-    """Unique month starts (1st) for months that have at least one reading."""
-    return sorted({month_start(d) for d in dates})
+    """Month starts for months that have readings, from first tracking month → latest."""
+    if not dates:
+        return []
+    normalized = sorted({_as_date(d) for d in dates})
+    first = month_start(normalized[0])
+    last = month_start(normalized[-1])
+    months = sorted({month_start(d) for d in normalized})
+    return [m for m in months if first <= m <= last]
 
 
 def _fmt_day(d: date) -> str:
@@ -1380,6 +1392,7 @@ def render_trends_panel(
     mode = mode or "week"
 
     all_dates = [_as_date(d) for d in daily_all["date"].unique()]
+    tracking_start = min(all_dates)
     periods = available_months(all_dates) if mode == "month" else available_weeks(all_dates)
     if not periods:
         st.warning("No readings in the selected range.")
@@ -1388,11 +1401,19 @@ def render_trends_panel(
     period_key = f"trends_period_{mode}"
     periods_key = f"_trends_periods_{mode}"
     st.session_state[periods_key] = periods
+    # Never allow a period before the first week/month with readings.
     if (
         period_key not in st.session_state
         or st.session_state[period_key] not in periods
     ):
         st.session_state[period_key] = periods[-1]
+    else:
+        # Clamp if session somehow holds an older key
+        held = st.session_state[period_key]
+        if held < periods[0]:
+            st.session_state[period_key] = periods[0]
+        elif held > periods[-1]:
+            st.session_state[period_key] = periods[-1]
 
     period_start = st.session_state[period_key]
     period_idx = periods.index(period_start)
@@ -1404,15 +1425,23 @@ def render_trends_panel(
             disabled=period_idx <= 0,
             use_container_width=True,
             key=f"prev_trends_{mode}",
-            help="Previous period",
+            help="Previous period (stops at first week/month with data)",
             on_click=_nudge_period,
             args=(period_key, periods_key, -1),
         )
     with mid_col:
+        at_start = period_idx == 0
+        start_hint = (
+            f"Start of record · since {_fmt_day(tracking_start)}, {tracking_start.year}"
+            if at_start
+            else ("Calendar month" if mode == "month" else "Sunday – Saturday")
+        )
         st.markdown(
-            f"<p style='text-align:center;margin:0.45rem 0 0;font-family:Fraunces,Georgia,serif;"
+            f"<p style='text-align:center;margin:0.35rem 0 0;font-family:Fraunces,Georgia,serif;"
             f"font-weight:600;font-size:1.05rem;color:#1a2e22;'>"
-            f"{html.escape(period_label(mode, period_start))}</p>",
+            f"{html.escape(period_label(mode, period_start))}</p>"
+            f"<p style='text-align:center;margin:0.15rem 0 0;font-size:0.75rem;color:#5a7262;'>"
+            f"{html.escape(start_hint)}</p>",
             unsafe_allow_html=True,
         )
     with next_col:

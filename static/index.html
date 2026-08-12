@@ -2041,12 +2041,36 @@
     }
 
     function buildAvailablePeriods(allDates) {
-      const sorted = [...allDates].sort();
+      const sorted = [...new Set(allDates)].sort();
       if (!sorted.length) return [];
       if (trendsRange === "month") {
-        return [...new Set(sorted.map(monthKey))];
+        const first = monthKey(sorted[0]);
+        const last = monthKey(sorted[sorted.length - 1]);
+        return [...new Set(sorted.map(monthKey))].filter((k) => k >= first && k <= last);
       }
-      return [...new Set(sorted.map(weekSunday))];
+      const first = weekSunday(sorted[0]);
+      const last = weekSunday(sorted[sorted.length - 1]);
+      return [...new Set(sorted.map(weekSunday))].filter((k) => k >= first && k <= last);
+    }
+
+    function clampPeriodKey(periods) {
+      if (!periods.length) {
+        selectedPeriodKey = "";
+        sessionStorage.removeItem("trendsPeriodKey");
+        return;
+      }
+      if (!selectedPeriodKey || !periods.includes(selectedPeriodKey)) {
+        // Prefer latest period; never earlier than first tracking week/month.
+        selectedPeriodKey = periods[periods.length - 1];
+      } else {
+        const idx = periods.indexOf(selectedPeriodKey);
+        if (idx < 0) selectedPeriodKey = periods[periods.length - 1];
+        else if (selectedPeriodKey < periods[0]) selectedPeriodKey = periods[0];
+        else if (selectedPeriodKey > periods[periods.length - 1]) {
+          selectedPeriodKey = periods[periods.length - 1];
+        }
+      }
+      sessionStorage.setItem("trendsPeriodKey", selectedPeriodKey);
     }
 
     function periodBounds(periodKey) {
@@ -2072,7 +2096,7 @@
       return `Sun ${startLabel} – Sat ${endLabel}`;
     }
 
-    function updatePeriodControls() {
+    function updatePeriodControls(trackingStartStr) {
       const idx = availablePeriods.indexOf(selectedPeriodKey);
       prevPeriodBtn.disabled = idx <= 0;
       nextPeriodBtn.disabled = idx < 0 || idx >= availablePeriods.length - 1;
@@ -2082,26 +2106,37 @@
         return;
       }
       periodTitle.textContent = formatPeriodTitle(selectedPeriodKey);
-      periodSub.textContent =
-        trendsRange === "month" ? "Calendar month" : "Sunday – Saturday";
+      if (idx === 0 && trackingStartStr) {
+        const start = parseDay(trackingStartStr);
+        const pretty = start.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+        periodSub.textContent = `Start of record · since ${pretty}`;
+      } else {
+        periodSub.textContent =
+          trendsRange === "month" ? "Calendar month" : "Sunday – Saturday";
+      }
     }
 
     function filterDaysByRange(allDays) {
       if (!allDays.length) return [];
       const sorted = [...allDays].sort((a, b) => a.date.localeCompare(b.date));
       const allDates = sorted.map((d) => d.date);
+      const trackingStart = allDates[0];
       availablePeriods = buildAvailablePeriods(allDates);
-      if (!availablePeriods.length) {
-        selectedPeriodKey = "";
+      clampPeriodKey(availablePeriods);
+      if (!availablePeriods.length || !selectedPeriodKey) {
+        updatePeriodControls(trackingStart);
         return [];
       }
-      if (!selectedPeriodKey || !availablePeriods.includes(selectedPeriodKey)) {
-        selectedPeriodKey = availablePeriods[availablePeriods.length - 1];
-        sessionStorage.setItem("trendsPeriodKey", selectedPeriodKey);
-      }
       const { start, end } = periodBounds(selectedPeriodKey);
-      updatePeriodControls();
-      return sorted.filter((d) => d.date >= start && d.date <= end);
+      updatePeriodControls(trackingStart);
+      // Only days inside this calendar period that have readings (never before tracking).
+      return sorted.filter(
+        (d) => d.date >= start && d.date <= end && d.date >= trackingStart
+      );
     }
 
     function mergeSelectedDaily(plants) {
