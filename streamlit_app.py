@@ -907,12 +907,46 @@ def filter_daily_range(daily_df: pd.DataFrame, range_key: str) -> pd.DataFrame:
     return daily_df[daily_df["date"].isin(keep)].copy()
 
 
+def _trends_day_axis(daily_df: pd.DataFrame) -> alt.X:
+    """One tick label per calendar day (avoids Altair's half-day duplicate labels)."""
+    dates = sorted(pd.to_datetime(daily_df["date"]).dt.normalize().unique())
+    if len(dates) > 14:
+        step = max(1, (len(dates) - 1) // 10)
+        tick_values = list(dates[::step])
+        if tick_values[-1] != dates[-1]:
+            tick_values.append(dates[-1])
+    else:
+        tick_values = list(dates)
+
+    return alt.X(
+        "yearmonthdate(date):T",
+        title="Day",
+        axis=alt.Axis(
+            format="%b %d",
+            labelAngle=-35,
+            values=tick_values,
+            labelOverlap=True,
+            tickCount=len(tick_values),
+        ),
+    )
+
+
+def _trends_y_axis() -> alt.Y:
+    return alt.Y(
+        "avg_moisture:Q",
+        title="Moisture %",
+        scale=alt.Scale(domain=[0, 100]),
+    )
+
+
 def daily_trends_chart(daily_df: pd.DataFrame) -> alt.Chart:
     if daily_df.empty:
         return alt.Chart(pd.DataFrame()).mark_point()
 
     daily_df = daily_df.copy()
-    daily_df["date"] = pd.to_datetime(daily_df["date"])
+    daily_df["date"] = pd.to_datetime(daily_df["date"]).dt.normalize()
+    x_enc = _trends_day_axis(daily_df)
+    y_enc = _trends_y_axis()
 
     if daily_df["plant_id"].nunique() > 1:
         names = list(daily_df.sort_values("plant_id")["plant_name"].unique())
@@ -922,16 +956,8 @@ def daily_trends_chart(daily_df: pd.DataFrame) -> alt.Chart:
         ]
         colors = [plant_color(pid) for pid in ids]
         base = alt.Chart(daily_df).encode(
-            x=alt.X(
-                "date:T",
-                title="Day",
-                axis=alt.Axis(format="%b %d", labelAngle=-35),
-            ),
-            y=alt.Y(
-                "avg_moisture:Q",
-                title="Avg moisture %",
-                scale=alt.Scale(domain=[0, 100]),
-            ),
+            x=x_enc,
+            y=y_enc,
             color=alt.Color(
                 "plant_name:N",
                 scale=alt.Scale(domain=names, range=colors),
@@ -961,23 +987,12 @@ def daily_trends_chart(daily_df: pd.DataFrame) -> alt.Chart:
 
     plant_id = int(daily_df["plant_id"].iloc[0])
     line_color = plant_color(plant_id)
-    base = alt.Chart(daily_df).encode(
-        x=alt.X(
-            "date:T",
-            title="Day",
-            axis=alt.Axis(format="%b %d", labelAngle=-35),
-        ),
-        y=alt.Y(
-            "avg_moisture:Q",
-            title="Avg moisture %",
-            scale=alt.Scale(domain=[0, 100]),
-        ),
-    )
+    base = alt.Chart(daily_df).encode(x=x_enc, y=y_enc)
     band = (
         alt.Chart(daily_df)
         .mark_area(opacity=0.14, color=line_color)
         .encode(
-            x="date:T",
+            x=x_enc,
             y="min_moisture:Q",
             y2="max_moisture:Q",
         )
