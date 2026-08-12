@@ -211,7 +211,11 @@ p.gauge-blurb .fact {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
-  margin: 0.75rem 0 1rem;
+  margin: 0.75rem 0 0.85rem;
+}
+
+div[data-testid="stSegmentedControl"] {
+  margin: 0.25rem 0 1rem;
 }
 
 .legend span {
@@ -288,6 +292,60 @@ p.gauge-blurb .fact {
   font-size: 1.15rem;
   font-weight: 700;
   color: #1a2e22;
+}
+
+.day-stat .sub {
+  display: block;
+  font-size: 0.62rem;
+  color: #5a7262;
+  margin-top: 0.1rem;
+}
+
+.trend-up { color: #2d8a55; }
+.trend-down { color: #c45c3e; }
+.trend-flat { color: #5a7262; }
+
+.status-mix-block {
+  margin-top: 0.85rem;
+}
+
+.status-mix-block h4 {
+  margin: 0 0 0.55rem;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1a2e22;
+}
+
+.status-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(45, 90, 61, 0.08);
+  margin-bottom: 0.35rem;
+}
+
+.status-bar span {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+}
+
+.status-bar-legend {
+  font-size: 0.68rem;
+  color: #5a7262;
+  margin-bottom: 0.65rem;
+}
+
+.watering-note {
+  margin: 0.65rem 0 0;
+  font-size: 0.78rem;
+  color: #5a7262;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(196, 224, 122, 0.18);
+  border: 1px solid rgba(45, 90, 61, 0.12);
 }
 
 .plant-swatch {
@@ -818,6 +876,448 @@ def day_chart_multi(day_df: pd.DataFrame) -> alt.Chart:
     )
 
 
+def build_daily_summary(plant_df: pd.DataFrame) -> pd.DataFrame:
+    """One row per plant per calendar day with avg/min/max."""
+    daily = (
+        plant_df.groupby(["plant_id", "plant_name", "date"], as_index=False)
+        .agg(
+            avg_moisture=("moisture_percentage", "mean"),
+            min_moisture=("moisture_percentage", "min"),
+            max_moisture=("moisture_percentage", "max"),
+            reading_count=("moisture_percentage", "count"),
+        )
+        .sort_values(["plant_id", "date"])
+    )
+    daily["avg_moisture"] = daily["avg_moisture"].round(1)
+    daily["min_moisture"] = daily["min_moisture"].round(1)
+    daily["max_moisture"] = daily["max_moisture"].round(1)
+    return daily
+
+
+def filter_daily_range(daily_df: pd.DataFrame, range_key: str) -> pd.DataFrame:
+    if daily_df.empty:
+        return daily_df
+    dates = sorted(daily_df["date"].unique())
+    if range_key == "7":
+        keep = set(dates[-7:])
+    elif range_key == "14":
+        keep = set(dates[-14:])
+    else:
+        keep = set(dates)
+    return daily_df[daily_df["date"].isin(keep)].copy()
+
+
+def daily_trends_chart(daily_df: pd.DataFrame) -> alt.Chart:
+    if daily_df.empty:
+        return alt.Chart(pd.DataFrame()).mark_point()
+
+    daily_df = daily_df.copy()
+    daily_df["date"] = pd.to_datetime(daily_df["date"])
+
+    if daily_df["plant_id"].nunique() > 1:
+        names = list(daily_df.sort_values("plant_id")["plant_name"].unique())
+        ids = [
+            int(daily_df.loc[daily_df["plant_name"] == name, "plant_id"].iloc[0])
+            for name in names
+        ]
+        colors = [plant_color(pid) for pid in ids]
+        base = alt.Chart(daily_df).encode(
+            x=alt.X(
+                "date:T",
+                title="Day",
+                axis=alt.Axis(format="%b %d", labelAngle=-35),
+            ),
+            y=alt.Y(
+                "avg_moisture:Q",
+                title="Avg moisture %",
+                scale=alt.Scale(domain=[0, 100]),
+            ),
+            color=alt.Color(
+                "plant_name:N",
+                scale=alt.Scale(domain=names, range=colors),
+                legend=None,
+            ),
+            tooltip=[
+                alt.Tooltip("plant_name:N", title="Plant"),
+                alt.Tooltip("date:T", title="Day", format="%b %d, %Y"),
+                alt.Tooltip("avg_moisture:Q", title="Avg %", format=".1f"),
+                alt.Tooltip("min_moisture:Q", title="Low %", format=".1f"),
+                alt.Tooltip("max_moisture:Q", title="High %", format=".1f"),
+                alt.Tooltip("reading_count:Q", title="Reads"),
+            ],
+        )
+        line = base.mark_line(strokeWidth=2.5)
+        points = base.mark_circle(size=60)
+        return (
+            alt.layer(_band_rules(), line, points)
+            .properties(height=280)
+            .configure_view(strokeWidth=0)
+            .configure_axis(
+                gridColor="rgba(45, 90, 61, 0.1)",
+                labelColor="#5a7262",
+                titleColor="#5a7262",
+            )
+        )
+
+    plant_id = int(daily_df["plant_id"].iloc[0])
+    line_color = plant_color(plant_id)
+    base = alt.Chart(daily_df).encode(
+        x=alt.X(
+            "date:T",
+            title="Day",
+            axis=alt.Axis(format="%b %d", labelAngle=-35),
+        ),
+        y=alt.Y(
+            "avg_moisture:Q",
+            title="Avg moisture %",
+            scale=alt.Scale(domain=[0, 100]),
+        ),
+    )
+    band = (
+        alt.Chart(daily_df)
+        .mark_area(opacity=0.14, color=line_color)
+        .encode(
+            x="date:T",
+            y="min_moisture:Q",
+            y2="max_moisture:Q",
+        )
+    )
+    line = base.mark_line(color=line_color, strokeWidth=2.5)
+    points = base.mark_circle(color=line_color, size=60).encode(
+        tooltip=[
+            alt.Tooltip("date:T", title="Day", format="%b %d, %Y"),
+            alt.Tooltip("avg_moisture:Q", title="Avg %", format=".1f"),
+            alt.Tooltip("min_moisture:Q", title="Low %", format=".1f"),
+            alt.Tooltip("max_moisture:Q", title="High %", format=".1f"),
+            alt.Tooltip("reading_count:Q", title="Reads"),
+        ],
+    )
+    return (
+        alt.layer(_band_rules(), band, line, points)
+        .properties(height=280)
+        .configure_view(strokeWidth=0)
+        .configure_axis(
+            gridColor="rgba(45, 90, 61, 0.1)",
+            labelColor="#5a7262",
+            titleColor="#5a7262",
+        )
+    )
+
+
+def compute_trends_insights(
+    daily_df: pd.DataFrame, plant_df: pd.DataFrame
+) -> dict | None:
+    if daily_df.empty:
+        return None
+
+    dates = sorted(daily_df["date"].unique())
+    subset = plant_df[plant_df["date"].isin(dates)]
+    total_count = len(subset)
+    if total_count == 0:
+        return None
+
+    overall_avg = float(daily_df["avg_moisture"].mean())
+    status_totals = subset["status_category"].value_counts().to_dict()
+    optimal_pct = round(
+        (status_totals.get("Optimal", 0) / total_count) * 100
+    )
+
+    driest_avg = float(daily_df["avg_moisture"].min())
+    driest_date = pd.Timestamp(
+        daily_df.loc[daily_df["avg_moisture"].idxmin(), "date"]
+    )
+
+    trend_text = "—"
+    trend_class = "trend-flat"
+    if len(dates) >= 4:
+        half = len(dates) // 2
+        first_dates = set(dates[:half])
+        second_dates = set(dates[half:])
+        first_mean = float(
+            daily_df[daily_df["date"].isin(first_dates)]["avg_moisture"].mean()
+        )
+        second_mean = float(
+            daily_df[daily_df["date"].isin(second_dates)]["avg_moisture"].mean()
+        )
+        delta = second_mean - first_mean
+        if abs(delta) < 2:
+            trend_text = "Flat"
+        elif delta > 0:
+            trend_text = f"↑ {delta:.1f}%"
+            trend_class = "trend-up"
+        else:
+            trend_text = f"↓ {abs(delta):.1f}%"
+            trend_class = "trend-down"
+
+    return {
+        "overall_avg": overall_avg,
+        "optimal_pct": optimal_pct,
+        "driest_date": driest_date,
+        "driest_avg": driest_avg,
+        "trend_text": trend_text,
+        "trend_class": trend_class,
+        "status_totals": status_totals,
+        "total_count": total_count,
+    }
+
+
+def trends_insights_html(insights: dict | None) -> str:
+    if not insights:
+        return ""
+    driest_label = insights["driest_date"].strftime("%b %d")
+    return (
+        '<div class="day-stats">'
+        f'<div class="day-stat"><span class="label">Range avg</span>'
+        f'<span class="value">{insights["overall_avg"]:.1f}%</span></div>'
+        f'<div class="day-stat"><span class="label">Trend</span>'
+        f'<span class="value {insights["trend_class"]}">{insights["trend_text"]}</span>'
+        f'<span class="sub">vs prior half</span></div>'
+        f'<div class="day-stat"><span class="label">Optimal</span>'
+        f'<span class="value">{insights["optimal_pct"]}%</span>'
+        f'<span class="sub">of readings</span></div>'
+        f'<div class="day-stat"><span class="label">Driest day</span>'
+        f'<span class="value">{insights["driest_avg"]:.1f}%</span>'
+        f'<span class="sub">{driest_label}</span></div>'
+        "</div>"
+    )
+
+
+def status_mix_html(
+    daily_df: pd.DataFrame, plant_df: pd.DataFrame, insights: dict | None
+) -> str:
+    if not insights or not insights["total_count"]:
+        return ""
+
+    dates = sorted(daily_df["date"].unique())
+    status_colors = STATUS_COLORS
+    rows = []
+
+    if daily_df["plant_id"].nunique() > 1:
+        for plant_id, group in daily_df.groupby("plant_id", sort=True):
+            name = html.escape(str(group["plant_name"].iloc[0]))
+            swatch = plant_color(int(plant_id))
+            subset = plant_df[
+                (plant_df["plant_id"] == plant_id) & (plant_df["date"].isin(dates))
+            ]
+            totals = subset["status_category"].value_counts().to_dict()
+            count = len(subset)
+            if not count:
+                continue
+            rows.append(
+                _one_status_bar_html(name, swatch, totals, count, status_colors)
+            )
+    else:
+        rows.append(
+            _one_status_bar_html(
+                "Status mix",
+                None,
+                insights["status_totals"],
+                insights["total_count"],
+                status_colors,
+            )
+        )
+
+    return (
+        '<div class="status-mix-block"><h4>Status mix</h4>'
+        f'{"".join(rows)}</div>'
+    )
+
+
+def _one_status_bar_html(
+    label: str,
+    swatch: str | None,
+    totals: dict,
+    count: int,
+    status_colors: dict,
+) -> str:
+    segments = []
+    legend_parts = []
+    for cat in ["Dry", "Moist", "Optimal", "Soggy"]:
+        n = totals.get(cat, 0)
+        if n <= 0:
+            continue
+        pct = (n / count) * 100
+        segments.append(
+            f'<span style="width:{pct:.1f}%;background:{status_colors[cat]}"></span>'
+        )
+        legend_parts.append(f"{cat} {round(pct)}%")
+    swatch_html = (
+        f'<span class="plant-swatch" style="background:{swatch}"></span>'
+        if swatch
+        else ""
+    )
+    return (
+        '<div class="status-mix-row">'
+        f'<div class="hour-col-head">{swatch_html}{label}</div>'
+        f'<div class="status-bar">{"".join(segments)}</div>'
+        f'<div class="status-bar-legend">{" · ".join(legend_parts)}</div>'
+        "</div>"
+    )
+
+
+def detect_watering_notes(daily_df: pd.DataFrame) -> str:
+    notes = []
+    for plant_id, group in daily_df.groupby("plant_id", sort=True):
+        group = group.sort_values("date")
+        name = str(group["plant_name"].iloc[0])
+        avgs = group["avg_moisture"].tolist()
+        dates = group["date"].tolist()
+        for i in range(1, len(avgs)):
+            jump = avgs[i] - avgs[i - 1]
+            if jump >= 15:
+                d = pd.Timestamp(dates[i]).strftime("%b %d")
+                notes.append(f"{name}: {d} (+{jump:.0f}%)")
+    if not notes:
+        return ""
+    return (
+        f'<p class="watering-note">Likely watered: {html.escape(" · ".join(notes))}</p>'
+    )
+
+
+def render_today_panel(
+    plant_df: pd.DataFrame,
+    picked_plants: list[str],
+    plant_options: dict[str, int],
+    today: date,
+) -> None:
+    render_html('<p class="panel-title">Day history</p>')
+    render_html(
+        '<p class="panel-sub">Multi-plant overlay · hover · drag to zoom</p>'
+    )
+
+    if not picked_plants:
+        st.info("Select a plant to view its day chart.")
+        return
+
+    selected_ids = [plant_options[n] for n in picked_plants]
+    scoped_df = plant_df[plant_df["plant_id"].isin(selected_ids)]
+
+    available_days = sorted(
+        {pd.Timestamp(d).date() for d in scoped_df["date"].dropna().unique()}
+    )
+    if not available_days:
+        st.warning("No dated readings for the selected plants in the CSV snapshot.")
+        return
+
+    day_key = "day_select_multi"
+    if day_key not in st.session_state or st.session_state[day_key] not in available_days:
+        st.session_state[day_key] = available_days[-1]
+    st.session_state["_nav_days"] = available_days
+
+    day_counts = scoped_df.groupby("date").size().to_dict()
+    picked = st.session_state[day_key]
+    render_day_chips(available_days, picked, day_counts, today, day_key)
+
+    day_idx = available_days.index(st.session_state[day_key])
+    prev_col, mid_col, next_col = st.columns([1, 4, 1], gap="small")
+    with prev_col:
+        st.button(
+            "←",
+            disabled=day_idx <= 0,
+            use_container_width=True,
+            key="prev_day_multi",
+            help="Previous day with readings",
+            on_click=_nudge_day,
+            args=(day_key, -1),
+        )
+    with mid_col:
+        st.selectbox(
+            "Day",
+            available_days,
+            format_func=lambda d: day_label(d, today),
+            label_visibility="collapsed",
+            key=day_key,
+        )
+    with next_col:
+        st.button(
+            "→",
+            disabled=day_idx >= len(available_days) - 1,
+            use_container_width=True,
+            key="next_day_multi",
+            help="Next day with readings",
+            on_click=_nudge_day,
+            args=(day_key, 1),
+        )
+
+    picked = st.session_state[day_key]
+    if len(available_days) == 1:
+        st.caption(
+            "Only one day in this CSV snapshot — sync more history from the Pi to browse other days."
+        )
+    else:
+        st.caption(
+            f"Day {day_idx + 1} of {len(available_days)} with readings · use ← → or the menu"
+        )
+
+    day_df = scoped_df[scoped_df["date"] == picked].sort_values("timestamp")
+    if day_df.empty:
+        st.warning("No readings for this day in the CSV snapshot.")
+        return
+
+    if len(selected_ids) == 1:
+        st.caption(f"{picked_plants[0]} · {day_label(picked, today)}")
+        render_html(day_stats_html(day_df))
+    else:
+        st.caption(
+            f"{len(selected_ids)} plants · {day_label(picked, today)} · {len(day_df)} readings"
+        )
+        render_html(multi_day_stats_html(day_df))
+
+    st.altair_chart(day_chart(day_df), use_container_width=True)
+    render_html(render_hour_lists_html(day_df, multi=len(selected_ids) > 1))
+
+
+def render_trends_panel(
+    plant_df: pd.DataFrame,
+    picked_plants: list[str],
+    plant_options: dict[str, int],
+) -> None:
+    render_html('<p class="panel-title">Daily trends</p>')
+    render_html(
+        '<p class="panel-sub">Daily average moisture · range band for one plant</p>'
+    )
+
+    if not picked_plants:
+        st.info("Select a plant to view daily trends.")
+        return
+
+    selected_ids = [plant_options[n] for n in picked_plants]
+    scoped_df = plant_df[plant_df["plant_id"].isin(selected_ids)]
+    daily_all = build_daily_summary(scoped_df)
+    if daily_all.empty:
+        st.warning("Not enough history for trends yet.")
+        return
+
+    range_key = st.segmented_control(
+        "Range",
+        options=["7", "14", "all"],
+        format_func=lambda x: {"7": "7 days", "14": "14 days", "all": "All"}[x],
+        default="all",
+        label_visibility="collapsed",
+        key="trends_range",
+    )
+    daily_df = filter_daily_range(daily_all, range_key or "all")
+    if daily_df.empty:
+        st.warning("No readings in the selected range.")
+        return
+
+    n_days = daily_df["date"].nunique()
+    if len(selected_ids) == 1:
+        st.caption(f"{picked_plants[0]} · {n_days} day{'s' if n_days != 1 else ''}")
+    else:
+        st.caption(
+            f"{len(selected_ids)} plants · {n_days} day{'s' if n_days != 1 else ''}"
+        )
+
+    insights = compute_trends_insights(daily_df, scoped_df)
+    render_html(trends_insights_html(insights))
+    st.altair_chart(daily_trends_chart(daily_df), use_container_width=True)
+    render_html(status_mix_html(daily_df, scoped_df, insights))
+    watering = detect_watering_notes(daily_df)
+    if watering:
+        render_html(watering)
+
+
 def day_stats_html(day_df: pd.DataFrame) -> str:
     avg = day_df["moisture_percentage"].mean()
     lo = day_df["moisture_percentage"].min()
@@ -1030,13 +1530,24 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
 
     render_status_legend()
 
+    init_plant_selection(names)
+
+    view = st.segmented_control(
+        "View",
+        options=["Today", "Trends"],
+        default="Today",
+        label_visibility="collapsed",
+        key="dashboard_view",
+    )
+
     left, right = st.columns([1.55, 0.85], gap="medium")
+    today = pd.Timestamp.now().date()
 
     with right:
         with st.container(border=True):
             render_html('<p class="panel-title">Present hydration</p>')
             render_html(
-                '<p class="panel-sub">Use buttons to multi-select · compare on the day chart</p>'
+                '<p class="panel-sub">Use buttons to multi-select · compare on charts</p>'
             )
             picked_plants = render_plant_toggles(names)
             selected_set = set(picked_plants)
@@ -1045,97 +1556,10 @@ def portfolio_dashboard(df: pd.DataFrame) -> None:
 
     with left:
         with st.container(border=True):
-            render_html('<p class="panel-title">Day history</p>')
-            render_html(
-                '<p class="panel-sub">Multi-plant overlay · hover · drag to zoom</p>'
-            )
-
-            if not picked_plants:
-                st.info("Select a plant to view its day chart.")
-                return
-
-            selected_ids = [plant_options[n] for n in picked_plants]
-            plant_df = df[df["plant_id"].isin(selected_ids)]
-
-            available_days = sorted(
-                {pd.Timestamp(d).date() for d in plant_df["date"].dropna().unique()}
-            )
-            if not available_days:
-                st.warning("No dated readings for the selected plants in the CSV snapshot.")
-                return
-
-            today = pd.Timestamp.now().date()
-            day_key = "day_select_multi"
-            if day_key not in st.session_state or st.session_state[day_key] not in available_days:
-                st.session_state[day_key] = available_days[-1]
-            # Used by ←/→ on_click callbacks (must update widget key before selectbox runs).
-            st.session_state["_nav_days"] = available_days
-
-            day_counts = (
-                plant_df.groupby("date").size().to_dict()
-            )
-
-            picked = st.session_state[day_key]
-            render_day_chips(available_days, picked, day_counts, today, day_key)
-
-            day_idx = available_days.index(st.session_state[day_key])
-            prev_col, mid_col, next_col = st.columns([1, 4, 1], gap="small")
-            with prev_col:
-                st.button(
-                    "←",
-                    disabled=day_idx <= 0,
-                    use_container_width=True,
-                    key="prev_day_multi",
-                    help="Previous day with readings",
-                    on_click=_nudge_day,
-                    args=(day_key, -1),
-                )
-            with mid_col:
-                st.selectbox(
-                    "Day",
-                    available_days,
-                    format_func=lambda d: day_label(d, today),
-                    label_visibility="collapsed",
-                    key=day_key,
-                )
-            with next_col:
-                st.button(
-                    "→",
-                    disabled=day_idx >= len(available_days) - 1,
-                    use_container_width=True,
-                    key="next_day_multi",
-                    help="Next day with readings",
-                    on_click=_nudge_day,
-                    args=(day_key, 1),
-                )
-
-            picked = st.session_state[day_key]
-            if len(available_days) == 1:
-                st.caption(
-                    "Only one day in this CSV snapshot — sync more history from the Pi to browse other days."
-                )
+            if view == "Trends":
+                render_trends_panel(df, picked_plants, plant_options)
             else:
-                st.caption(
-                    f"Day {day_idx + 1} of {len(available_days)} with readings · use ← → or the menu"
-                )
-
-            day_df = plant_df[plant_df["date"] == picked].sort_values("timestamp")
-            if day_df.empty:
-                st.warning("No readings for this day in the CSV snapshot.")
-            else:
-                if len(selected_ids) == 1:
-                    st.caption(f"{picked_plants[0]} · {day_label(picked, today)}")
-                    render_html(day_stats_html(day_df))
-                else:
-                    st.caption(
-                        f"{len(selected_ids)} plants · {day_label(picked, today)} · {len(day_df)} readings"
-                    )
-                    render_html(multi_day_stats_html(day_df))
-
-                st.altair_chart(day_chart(day_df), use_container_width=True)
-                render_html(
-                    render_hour_lists_html(day_df, multi=len(selected_ids) > 1)
-                )
+                render_today_panel(df, picked_plants, plant_options, today)
 
 
 def main() -> None:

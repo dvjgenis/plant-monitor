@@ -332,6 +332,100 @@ def receive_moisture(data: SensorData):
     return {"status": "success", "category": category}
 
 
+STATUS_CATEGORIES = ("Dry", "Moist", "Optimal", "Soggy", "Unknown")
+
+
+def empty_status_counts() -> dict[str, int]:
+    return {cat: 0 for cat in STATUS_CATEGORIES}
+
+
+@app.get("/api/daily")
+def get_daily_aggregates(
+    from_day: str | None = Query(None, alias="from", description="YYYY-MM-DD"),
+    to_day: str | None = Query(None, alias="to", description="YYYY-MM-DD"),
+):
+    """Daily moisture aggregates per plant for the Trends view."""
+    date_from = parse_day(from_day) if from_day else None
+    date_to = parse_day(to_day) if to_day else None
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=400, detail="'from' must be on or before 'to'")
+
+    with get_db() as conn:
+        agg_rows = conn.execute(
+            """
+            SELECT
+                plant_id,
+                date(timestamp) AS day,
+                AVG(moisture_percentage) AS avg_moisture,
+                MIN(moisture_percentage) AS min_moisture,
+                MAX(moisture_percentage) AS max_moisture,
+                COUNT(*) AS reading_count
+            FROM readings
+            GROUP BY plant_id, date(timestamp)
+            ORDER BY plant_id, day ASC
+            """
+        ).fetchall()
+
+        status_rows = conn.execute(
+            """
+            SELECT plant_id, date(timestamp) AS day, status_category, COUNT(*) AS n
+            FROM readings
+            GROUP BY plant_id, date(timestamp), status_category
+            """
+        ).fetchall()
+
+    status_by_key: dict[tuple[int, str], dict[str, int]] = {}
+    for row in status_rows:
+        key = (row["plant_id"], row["day"])
+        if key not in status_by_key:
+            status_by_key[key] = empty_status_counts()
+        cat = row["status_category"]
+        if cat not in status_by_key[key]:
+            cat = "Unknown"
+        status_by_key[key][cat] += row["n"]
+
+    plants_map: dict[int, list[dict]] = {}
+    all_days: set[str] = set()
+    for row in agg_rows:
+        day = row["day"]
+        all_days.add(day)
+        if date_from and day < date_from:
+            continue
+        if date_to and day > date_to:
+            continue
+        plants_map.setdefault(row["plant_id"], []).append(
+            {
+                "date": day,
+                "avg_moisture": round(row["avg_moisture"], 1),
+                "min_moisture": round(row["min_moisture"], 1),
+                "max_moisture": round(row["max_moisture"], 1),
+                "reading_count": row["reading_count"],
+                "status_counts": status_by_key.get(
+                    (row["plant_id"], day), empty_status_counts()
+                ),
+            }
+        )
+
+    sorted_days = sorted(all_days)
+    response_from = date_from or (sorted_days[0] if sorted_days else date.today().isoformat())
+    response_to = date_to or (sorted_days[-1] if sorted_days else date.today().isoformat())
+
+    plants = [
+        {
+            "plant_id": plant_id,
+            "name": plant_name(plant_id),
+            "days": days,
+        }
+        for plant_id, days in sorted(plants_map.items())
+    ]
+
+    return {
+        "from": response_from,
+        "to": response_to,
+        "plants": plants,
+    }
+
+
 @app.get("/api/plants/{plant_id}/history")
 def get_plant_history(
     plant_id: int,

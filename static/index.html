@@ -96,9 +96,191 @@
       align-items: flex-end;
       justify-content: space-between;
       gap: 1rem;
-      margin-bottom: 1.75rem;
+      margin-bottom: 1rem;
       animation: rise 0.55s ease both;
     }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+      animation: rise 0.55s ease 0.04s both;
+    }
+
+    .view-toggle {
+      display: inline-flex;
+      padding: 0.25rem;
+      border-radius: 999px;
+      background: rgba(255, 252, 247, 0.65);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .view-toggle button {
+      appearance: none;
+      border: none;
+      background: transparent;
+      font-family: var(--font-body);
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 0.55rem 1.1rem;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .view-toggle button.active {
+      background: var(--brand);
+      color: #f5f8f0;
+    }
+
+    .view-toggle button:hover:not(.active) {
+      color: var(--ink);
+    }
+
+    .range-chips {
+      display: flex;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+
+    .range-chip {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: rgba(255, 252, 247, 0.7);
+      color: var(--muted);
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .range-chip.active {
+      background: var(--brand);
+      color: #f5f8f0;
+      border-color: var(--brand);
+    }
+
+    .range-chip:hover:not(.active) {
+      border-color: rgba(45, 90, 61, 0.3);
+      color: var(--ink);
+    }
+
+    .insight-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.55rem;
+      margin: 0 0 1rem;
+    }
+
+    .insight-card {
+      padding: 0.65rem 0.75rem;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 252, 247, 0.65);
+    }
+
+    .insight-card .label {
+      display: block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+
+    .insight-card .value {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .insight-card .sub {
+      display: block;
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+
+    .trend-up { color: var(--optimal); }
+    .trend-down { color: var(--dry); }
+    .trend-flat { color: var(--muted); }
+
+    .status-mix {
+      margin-top: 1rem;
+    }
+
+    .status-mix h3 {
+      margin: 0 0 0.65rem;
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .status-mix-row {
+      margin-bottom: 0.75rem;
+    }
+
+    .status-mix-label {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 0.35rem;
+    }
+
+    .status-mix-label i {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-bar {
+      display: flex;
+      height: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(45, 90, 61, 0.08);
+    }
+
+    .status-bar span {
+      display: block;
+      height: 100%;
+      min-width: 2px;
+    }
+
+    .status-bar-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.75rem;
+      margin-top: 0.45rem;
+      font-size: 0.68rem;
+      color: var(--muted);
+    }
+
+    .watering-note {
+      margin: 0.65rem 0 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+      padding: 0.55rem 0.7rem;
+      border-radius: 10px;
+      background: rgba(196, 224, 122, 0.18);
+      border: 1px solid rgba(45, 90, 61, 0.12);
+    }
+
+    #trends-panel { animation-delay: 0.1s; }
 
     .brand-block h1 {
       margin: 0;
@@ -732,7 +914,21 @@
       header.top {
         flex-direction: column;
         align-items: stretch;
-        margin-bottom: 1.25rem;
+        margin-bottom: 1rem;
+      }
+
+      .header-row {
+        margin-bottom: 1rem;
+      }
+
+      .view-toggle {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .view-toggle button {
+        flex: 1;
+        text-align: center;
       }
 
       .toolbar {
@@ -808,6 +1004,13 @@
       </div>
     </header>
 
+    <div class="header-row">
+      <div class="view-toggle" role="tablist" aria-label="Dashboard view">
+        <button type="button" id="view-today" class="active" role="tab" aria-selected="true">Today</button>
+        <button type="button" id="view-trends" role="tab" aria-selected="false">Trends</button>
+      </div>
+    </div>
+
     <div class="legend" aria-hidden="true">
       <span><i class="dot-dry"></i> Dry ≤20%</span>
       <span><i class="dot-moist"></i> Moist ≤50%</span>
@@ -845,6 +1048,29 @@
         </div>
         <div id="day-empty" class="empty-day" hidden>No readings for this day yet.</div>
         <div id="hour-list"></div>
+      </section>
+
+      <section class="panel" id="trends-panel" hidden>
+        <div class="panel-head">
+          <h2>Daily trends</h2>
+          <span id="trends-subtitle">—</span>
+        </div>
+
+        <div class="range-chips" id="range-chips" aria-label="Date range">
+          <button type="button" class="range-chip" data-range="7">7 days</button>
+          <button type="button" class="range-chip" data-range="14">14 days</button>
+          <button type="button" class="range-chip active" data-range="all">All</button>
+        </div>
+
+        <div class="chart-legend" id="trends-chart-legend" hidden></div>
+        <div class="chart-wrap" id="trends-chart-wrap">
+          <canvas id="trendsChart" aria-label="Daily average moisture chart"></canvas>
+        </div>
+        <div id="trends-empty" class="empty-day" hidden>Not enough history for trends yet.</div>
+
+        <div class="insight-strip" id="insight-strip"></div>
+        <div class="status-mix" id="status-mix"></div>
+        <p class="watering-note" id="watering-note" hidden></p>
       </section>
 
       <section class="panel" id="now-panel">
@@ -888,6 +1114,7 @@
     };
 
     let chartInstance = null;
+    let trendsChartInstance = null;
     let lastTodayStr = "";
     let selectedPlantIds = new Set();
     let knownPlantIds = [];
@@ -895,8 +1122,12 @@
     let selectedDay = localDateString(new Date());
     let selectedHighlight = null; // { plantId, chartIndex }
     let lastHistoryFingerprint = "";
+    let lastTrendsFingerprint = "";
     let availableDays = [];
     let pollTimer = null;
+    let activeView = sessionStorage.getItem("activeView") || "today";
+    let trendsRange = sessionStorage.getItem("trendsRange") || "all";
+    let dailyPayload = null;
 
     const refreshBtn = document.getElementById("refresh-btn");
     const wipeBtn = document.getElementById("wipe-btn");
@@ -914,6 +1145,17 @@
     const chartLegend = document.getElementById("chart-legend");
     const gaugeStack = document.getElementById("gauge-stack");
     const selectAllBtn = document.getElementById("select-all-plants");
+    const dayPanel = document.getElementById("day-panel");
+    const trendsPanel = document.getElementById("trends-panel");
+    const viewTodayBtn = document.getElementById("view-today");
+    const viewTrendsBtn = document.getElementById("view-trends");
+    const rangeChips = document.getElementById("range-chips");
+    const trendsChartWrap = document.getElementById("trends-chart-wrap");
+    const trendsChartLegend = document.getElementById("trends-chart-legend");
+    const trendsEmpty = document.getElementById("trends-empty");
+    const insightStrip = document.getElementById("insight-strip");
+    const statusMix = document.getElementById("status-mix");
+    const wateringNote = document.getElementById("watering-note");
 
     refreshBtn.addEventListener("click", () => loadDashboard(true));
     wipeBtn.addEventListener("click", wipeData);
@@ -930,6 +1172,39 @@
       selectedPlantIds = new Set(allSelected ? [knownPlantIds[0]] : knownPlantIds);
       loadDashboard(true);
     });
+
+    viewTodayBtn.addEventListener("click", () => setActiveView("today"));
+    viewTrendsBtn.addEventListener("click", () => setActiveView("trends"));
+
+    rangeChips.querySelectorAll(".range-chip").forEach((chip) => {
+      chip.classList.toggle("active", chip.dataset.range === trendsRange);
+      chip.addEventListener("click", () => {
+        trendsRange = chip.dataset.range;
+        sessionStorage.setItem("trendsRange", trendsRange);
+        rangeChips.querySelectorAll(".range-chip").forEach((c) => {
+          c.classList.toggle("active", c.dataset.range === trendsRange);
+        });
+        if (dailyPayload) renderTrendsView(dailyPayload);
+      });
+    });
+
+    function applyViewChrome() {
+      viewTodayBtn.classList.toggle("active", activeView === "today");
+      viewTrendsBtn.classList.toggle("active", activeView === "trends");
+      viewTodayBtn.setAttribute("aria-selected", activeView === "today" ? "true" : "false");
+      viewTrendsBtn.setAttribute("aria-selected", activeView === "trends" ? "true" : "false");
+      dayPanel.hidden = activeView !== "today";
+      trendsPanel.hidden = activeView !== "trends";
+    }
+    applyViewChrome();
+
+    function setActiveView(view) {
+      if (activeView === view) return;
+      activeView = view;
+      sessionStorage.setItem("activeView", view);
+      applyViewChrome();
+      loadDashboard(true);
+    }
 
     function plantStyle(plantId) {
       return PLANT_PALETTE[(Number(plantId) - 1 + PLANT_PALETTE.length) % PLANT_PALETTE.length];
@@ -1137,6 +1412,11 @@
           chartInstance.destroy();
           chartInstance = null;
         }
+        if (trendsChartInstance) {
+          trendsChartInstance.destroy();
+          trendsChartInstance = null;
+        }
+        dailyPayload = null;
         setSync(true, `Wiped ${data.deleted} reading${data.deleted === 1 ? "" : "s"}`);
         await loadDashboard(true);
       } catch (err) {
@@ -1173,31 +1453,39 @@
 
         clearState();
         vizRow.hidden = false;
+        applyViewChrome();
         syncSelectionWithPlants(plants);
-
-        const ids = selectedIdsSorted();
-        let histories = [];
-        if (ids.length > 0) {
-          const historyResponses = await Promise.all(
-            ids.map((id) =>
-              fetch(`/api/plants/${id}/history?day=${encodeURIComponent(selectedDay)}`)
-            )
-          );
-          if (historyResponses.some((res) => !res.ok)) {
-            throw new Error("Server returned an error");
-          }
-          histories = await Promise.all(historyResponses.map((res) => res.json()));
-          availableDays = mergeAvailableDays(histories);
-        } else {
-          availableDays = [];
-        }
-        const todayStr = histories[0]?.today || localDateString(new Date());
-        lastTodayStr = todayStr;
-
-        updateDayControls(todayStr);
-        renderDayChips(todayStr);
         renderNowView(plants);
-        renderDayView(histories);
+
+        if (activeView === "trends") {
+          const dailyRes = await fetch("/api/daily");
+          if (!dailyRes.ok) throw new Error("Server returned an error");
+          dailyPayload = await dailyRes.json();
+          renderTrendsView(dailyPayload);
+        } else {
+          const ids = selectedIdsSorted();
+          let histories = [];
+          if (ids.length > 0) {
+            const historyResponses = await Promise.all(
+              ids.map((id) =>
+                fetch(`/api/plants/${id}/history?day=${encodeURIComponent(selectedDay)}`)
+              )
+            );
+            if (historyResponses.some((res) => !res.ok)) {
+              throw new Error("Server returned an error");
+            }
+            histories = await Promise.all(historyResponses.map((res) => res.json()));
+            availableDays = mergeAvailableDays(histories);
+          } else {
+            availableDays = [];
+          }
+          const todayStr = histories[0]?.today || localDateString(new Date());
+          lastTodayStr = todayStr;
+
+          updateDayControls(todayStr);
+          renderDayChips(todayStr);
+          renderDayView(histories);
+        }
 
         const stamp = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
         setSync(true, manual ? `Refreshed at ${stamp}` : `Auto-refresh · last sync ${stamp}`);
@@ -1691,6 +1979,498 @@
       }
     }
 
+    function filterDaysByRange(allDays) {
+      if (!allDays.length) return [];
+      const sorted = [...allDays].sort((a, b) => a.date.localeCompare(b.date));
+      if (trendsRange === "all") return sorted;
+      const n = trendsRange === "7" ? 7 : 14;
+      return sorted.slice(-n);
+    }
+
+    function mergeSelectedDaily(plants) {
+      const ids = selectedIdsSorted();
+      const selected = (plants || []).filter((p) => ids.includes(p.plant_id));
+      const dateSet = new Set();
+      for (const plant of selected) {
+        for (const day of plant.days || []) dateSet.add(day.date);
+      }
+      const allDates = [...dateSet].sort();
+      const filteredDates = filterDaysByRange(allDates.map((d) => ({ date: d }))).map(
+        (d) => d.date
+      );
+      return { selected, filteredDates };
+    }
+
+    function computeInsights(selectedPlants, filteredDates) {
+      const allReadings = [];
+      const statusTotals = emptyStatusCounts();
+      let totalCount = 0;
+
+      for (const plant of selectedPlants) {
+        for (const day of plant.days || []) {
+          if (!filteredDates.includes(day.date)) continue;
+          allReadings.push({ date: day.date, avg: day.avg_moisture, plant_id: plant.plant_id });
+          totalCount += day.reading_count || 0;
+          for (const [cat, n] of Object.entries(day.status_counts || {})) {
+            if (cat in statusTotals) statusTotals[cat] += n;
+          }
+        }
+      }
+
+      if (!allReadings.length) {
+        return null;
+      }
+
+      const avgs = allReadings.map((r) => r.avg);
+      const overallAvg = avgs.reduce((a, b) => a + b, 0) / avgs.length;
+      const statusSum = Object.values(statusTotals).reduce((a, b) => a + b, 0);
+      const optimalPct =
+        statusSum > 0 ? Math.round((statusTotals.Optimal / statusSum) * 100) : 0;
+
+      const driest = allReadings.reduce((min, r) => (r.avg < min.avg ? r : min), allReadings[0]);
+
+      const half = Math.floor(filteredDates.length / 2);
+      let trendText = "—";
+      let trendClass = "trend-flat";
+      if (filteredDates.length >= 4) {
+        const firstHalfDates = new Set(filteredDates.slice(0, half));
+        const secondHalfDates = new Set(filteredDates.slice(half));
+        const firstAvgs = allReadings.filter((r) => firstHalfDates.has(r.date)).map((r) => r.avg);
+        const secondAvgs = allReadings.filter((r) => secondHalfDates.has(r.date)).map((r) => r.avg);
+        if (firstAvgs.length && secondAvgs.length) {
+          const firstMean = firstAvgs.reduce((a, b) => a + b, 0) / firstAvgs.length;
+          const secondMean = secondAvgs.reduce((a, b) => a + b, 0) / secondAvgs.length;
+          const delta = secondMean - firstMean;
+          if (Math.abs(delta) < 2) {
+            trendText = "Flat";
+            trendClass = "trend-flat";
+          } else if (delta > 0) {
+            trendText = `↑ ${delta.toFixed(1)}%`;
+            trendClass = "trend-up";
+          } else {
+            trendText = `↓ ${Math.abs(delta).toFixed(1)}%`;
+            trendClass = "trend-down";
+          }
+        }
+      }
+
+      return {
+        overallAvg,
+        optimalPct,
+        driest,
+        trendText,
+        trendClass,
+        statusTotals,
+        totalCount,
+      };
+    }
+
+    function emptyStatusCounts() {
+      return { Dry: 0, Moist: 0, Optimal: 0, Soggy: 0 };
+    }
+
+    function detectWateringJumps(selectedPlants, filteredDates) {
+      const notes = [];
+      for (const plant of selectedPlants) {
+        const days = (plant.days || [])
+          .filter((d) => filteredDates.includes(d.date))
+          .sort((a, b) => a.date.localeCompare(b.date));
+        for (let i = 1; i < days.length; i++) {
+          const jump = days[i].avg_moisture - days[i - 1].avg_moisture;
+          if (jump >= 15) {
+            notes.push(
+              `${plant.name}: ${formatShortDate(days[i].date)} (+${jump.toFixed(0)}%)`
+            );
+          }
+        }
+      }
+      return notes;
+    }
+
+    function formatShortDate(dateStr) {
+      return parseDay(dateStr).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      });
+    }
+
+    function dateToIndex(dateStr, filteredDates) {
+      return filteredDates.indexOf(dateStr);
+    }
+
+    function renderTrendsInsights(insights) {
+      if (!insights) {
+        insightStrip.innerHTML = "";
+        return;
+      }
+      insightStrip.innerHTML = `
+        <div class="insight-card">
+          <span class="label">Range avg</span>
+          <span class="value">${insights.overallAvg.toFixed(1)}%</span>
+        </div>
+        <div class="insight-card">
+          <span class="label">Trend</span>
+          <span class="value ${insights.trendClass}">${insights.trendText}</span>
+          <span class="sub">vs prior half</span>
+        </div>
+        <div class="insight-card">
+          <span class="label">Optimal</span>
+          <span class="value">${insights.optimalPct}%</span>
+          <span class="sub">of readings</span>
+        </div>
+        <div class="insight-card">
+          <span class="label">Driest day</span>
+          <span class="value">${insights.driest.avg.toFixed(1)}%</span>
+          <span class="sub">${formatShortDate(insights.driest.date)}</span>
+        </div>
+      `;
+    }
+
+    function renderStatusMixBars(selectedPlants, filteredDates, insights) {
+      if (!insights || !insights.totalCount) {
+        statusMix.innerHTML = "";
+        return;
+      }
+
+      const statusColors = {
+        Dry: "var(--dry)",
+        Moist: "var(--moist)",
+        Optimal: "var(--optimal)",
+        Soggy: "var(--soggy)",
+      };
+
+      const multi = selectedPlants.length > 1;
+      let rowsHtml = "";
+
+      if (multi) {
+        for (const plant of selectedPlants) {
+          const totals = emptyStatusCounts();
+          let count = 0;
+          for (const day of plant.days || []) {
+            if (!filteredDates.includes(day.date)) continue;
+            count += day.reading_count || 0;
+            for (const [cat, n] of Object.entries(day.status_counts || {})) {
+              if (cat in totals) totals[cat] += n;
+            }
+          }
+          if (!count) continue;
+          rowsHtml += renderOneStatusBar(
+            plant.name,
+            plantStyle(plant.plant_id).line,
+            totals,
+            count,
+            statusColors
+          );
+        }
+      } else {
+        rowsHtml = renderOneStatusBar(
+          "Status mix",
+          null,
+          insights.statusTotals,
+          insights.totalCount,
+          statusColors
+        );
+      }
+
+      statusMix.innerHTML = `<h3>Status mix</h3>${rowsHtml}`;
+    }
+
+    function renderOneStatusBar(label, swatchColor, totals, count, statusColors) {
+      const segments = ["Dry", "Moist", "Optimal", "Soggy"]
+        .filter((cat) => totals[cat] > 0)
+        .map(
+          (cat) =>
+            `<span style="width:${(totals[cat] / count) * 100}%;background:${statusColors[cat]}" title="${cat}: ${totals[cat]}"></span>`
+        )
+        .join("");
+      const legend = ["Dry", "Moist", "Optimal", "Soggy"]
+        .filter((cat) => totals[cat] > 0)
+        .map((cat) => `${cat} ${Math.round((totals[cat] / count) * 100)}%`)
+        .join(" · ");
+      const swatch = swatchColor
+        ? `<i style="background:${swatchColor}"></i>`
+        : "";
+      return `
+        <div class="status-mix-row">
+          <div class="status-mix-label">${swatch}${escapeHtml(label)}</div>
+          <div class="status-bar">${segments}</div>
+          <div class="status-bar-legend">${legend}</div>
+        </div>
+      `;
+    }
+
+    function trendsFingerprint(selectedPlants, filteredDates) {
+      return selectedPlants
+        .map((p) => {
+          const days = (p.days || [])
+            .filter((d) => filteredDates.includes(d.date))
+            .map((d) => `${d.date}:${d.avg_moisture}`)
+            .join("|");
+          return `${p.plant_id}:${days}`;
+        })
+        .join("||");
+    }
+
+    function renderTrendsView(payload) {
+      const { selected, filteredDates } = mergeSelectedDaily(payload.plants || []);
+      const names = selected.map((p) => p.name);
+      let subtitle;
+      if (!selected.length) {
+        subtitle = "Select a plant to view trends";
+      } else if (selected.length === 1) {
+        subtitle = `${names[0]} · ${filteredDates.length} day${filteredDates.length === 1 ? "" : "s"}`;
+      } else {
+        subtitle = `${selected.length} plants · ${filteredDates.length} day${filteredDates.length === 1 ? "" : "s"}`;
+      }
+      document.getElementById("trends-subtitle").textContent = subtitle;
+
+      const hasData = selected.some((p) =>
+        (p.days || []).some((d) => filteredDates.includes(d.date))
+      );
+
+      if (!hasData || filteredDates.length === 0) {
+        trendsChartWrap.hidden = true;
+        trendsChartLegend.hidden = true;
+        trendsEmpty.hidden = false;
+        trendsEmpty.textContent = !selected.length
+          ? "Select a plant to view daily trends."
+          : "Not enough history for trends yet.";
+        insightStrip.innerHTML = "";
+        statusMix.innerHTML = "";
+        wateringNote.hidden = true;
+        lastTrendsFingerprint = "";
+        if (trendsChartInstance) {
+          trendsChartInstance.destroy();
+          trendsChartInstance = null;
+        }
+        return;
+      }
+
+      const insights = computeInsights(selected, filteredDates);
+      renderTrendsInsights(insights);
+      renderStatusMixBars(selected, filteredDates, insights);
+
+      const wateringNotes = detectWateringJumps(selected, filteredDates);
+      if (wateringNotes.length) {
+        wateringNote.hidden = false;
+        wateringNote.textContent = `Likely watered: ${wateringNotes.map(escapeHtml).join(" · ")}`;
+      } else {
+        wateringNote.hidden = true;
+      }
+
+      trendsChartWrap.hidden = false;
+      trendsEmpty.hidden = true;
+      trendsChartWrap.classList.toggle("multi", selected.length > 1);
+      trendsChartLegend.hidden = selected.length < 2;
+      if (selected.length > 1) {
+        trendsChartLegend.innerHTML = selected
+          .map((plant) => {
+            const color = plantStyle(plant.plant_id).line;
+            return `<span><i style="background:${color}"></i>${escapeHtml(plant.name)}</span>`;
+          })
+          .join("");
+      } else {
+        trendsChartLegend.innerHTML = "";
+      }
+
+      const fingerprint = trendsFingerprint(selected, filteredDates) + trendsRange;
+      const unchanged = fingerprint === lastTrendsFingerprint && trendsChartInstance;
+      if (unchanged) return;
+
+      lastTrendsFingerprint = fingerprint;
+
+      trendsChartWrap.style.animation = "none";
+      trendsChartWrap.offsetHeight;
+      trendsChartWrap.style.animation = "";
+
+      if (typeof Chart === "undefined") {
+        trendsChartWrap.hidden = true;
+        trendsEmpty.hidden = false;
+        trendsEmpty.textContent = "Chart library failed to load.";
+        return;
+      }
+
+      const ctx = document.getElementById("trendsChart").getContext("2d");
+      if (trendsChartInstance) trendsChartInstance.destroy();
+
+      const bandLines = {
+        id: "trendsMoistureBands",
+        afterDraw(chart) {
+          const { ctx: c, chartArea, scales } = chart;
+          if (!chartArea || !scales.y) return;
+          c.save();
+          c.setLineDash([4, 4]);
+          c.strokeStyle = "rgba(45, 90, 61, 0.28)";
+          c.lineWidth = 1;
+          for (const yVal of [20, 50, 80]) {
+            const y = scales.y.getPixelForValue(yVal);
+            c.beginPath();
+            c.moveTo(chartArea.left, y);
+            c.lineTo(chartArea.right, y);
+            c.stroke();
+          }
+          c.restore();
+        },
+      };
+
+      const datasets = [];
+      const wateringPoints = new Set();
+
+      for (const plant of selected) {
+        const style = plantStyle(plant.plant_id);
+        const days = (plant.days || [])
+          .filter((d) => filteredDates.includes(d.date))
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        const avgPoints = days.map((d) => ({
+          x: dateToIndex(d.date, filteredDates),
+          y: d.avg_moisture,
+          date: d.date,
+          min: d.min_moisture,
+          max: d.max_moisture,
+          plant_name: plant.name,
+        }));
+
+        for (let i = 1; i < days.length; i++) {
+          if (days[i].avg_moisture - days[i - 1].avg_moisture >= 15) {
+            wateringPoints.add(`${plant.plant_id}:${days[i].date}`);
+          }
+        }
+
+        if (selected.length === 1 && days.length) {
+          const minPoints = days.map((d) => ({
+            x: dateToIndex(d.date, filteredDates),
+            y: d.min_moisture,
+          }));
+          const maxPoints = days.map((d) => ({
+            x: dateToIndex(d.date, filteredDates),
+            y: d.max_moisture,
+          }));
+          datasets.push({
+            label: "Daily min",
+            data: minPoints,
+            borderColor: "transparent",
+            backgroundColor: "transparent",
+            pointRadius: 0,
+            fill: false,
+            tension: 0.35,
+            order: 3,
+          });
+          datasets.push({
+            label: "Daily range",
+            data: maxPoints,
+            borderColor: "transparent",
+            backgroundColor: style.fill,
+            pointRadius: 0,
+            fill: "-1",
+            tension: 0.35,
+            order: 2,
+          });
+        }
+
+        datasets.push({
+          label: plant.name,
+          plantId: plant.plant_id,
+          data: avgPoints,
+          borderColor: style.line,
+          backgroundColor: style.fill,
+          fill: selected.length === 1,
+          tension: 0.35,
+          borderWidth: 2.5,
+          pointRadius: avgPoints.map((p) =>
+            wateringPoints.has(`${plant.plant_id}:${p.date}`) ? 7 : 4
+          ),
+          pointHoverRadius: 8,
+          pointBackgroundColor: avgPoints.map((p) =>
+            wateringPoints.has(`${plant.plant_id}:${p.date}`) ? "#c4e07a" : style.line
+          ),
+          pointBorderColor: "#fffbf5",
+          pointBorderWidth: 2,
+          order: 1,
+        });
+      }
+
+      trendsChartInstance = new Chart(ctx, {
+        type: "line",
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          parsing: false,
+          interaction: { mode: "nearest", intersect: true, axis: "xy" },
+          scales: {
+            y: {
+              min: 0,
+              max: 100,
+              grid: { color: "rgba(45, 90, 61, 0.1)" },
+              ticks: {
+                color: "#5a7262",
+                font: { family: "Manrope", size: 11 },
+                callback: (v) => `${v}%`,
+              },
+              border: { display: false },
+            },
+            x: {
+              type: "linear",
+              min: -0.3,
+              max: Math.max(filteredDates.length - 0.7, 0.3),
+              offset: false,
+              grid: { color: "rgba(45, 90, 61, 0.06)" },
+              ticks: {
+                color: "#5a7262",
+                font: { family: "Manrope", size: 10 },
+                stepSize: 1,
+                autoSkip: false,
+                maxRotation: 45,
+                minRotation: 0,
+                callback: (value) => {
+                  const idx = Math.round(value);
+                  if (idx !== value || idx < 0 || idx >= filteredDates.length) return "";
+                  return formatShortDate(filteredDates[idx]);
+                },
+              },
+              border: { display: false },
+            },
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "#1a2e22",
+              titleColor: "#f4f9e8",
+              bodyColor: "#e8f0e6",
+              titleFont: { family: "Manrope", size: 12, weight: "600" },
+              bodyFont: { family: "Manrope", size: 12 },
+              padding: { top: 10, right: 12, bottom: 10, left: 12 },
+              cornerRadius: 10,
+              callbacks: {
+                title: (items) => {
+                  const raw = items[0]?.raw;
+                  if (raw?.date) return formatShortDate(raw.date);
+                  const idx = Math.round(items[0]?.parsed?.x ?? -1);
+                  if (idx >= 0 && idx < filteredDates.length) {
+                    return formatShortDate(filteredDates[idx]);
+                  }
+                  return "";
+                },
+                label: (ctx) => {
+                  if (ctx.dataset.label === "Daily range") return null;
+                  const raw = ctx.raw || {};
+                  let line = `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}% avg`;
+                  if (raw.min != null && raw.max != null && raw.min !== raw.max) {
+                    line += ` (${raw.min.toFixed(1)}–${raw.max.toFixed(1)}%)`;
+                  }
+                  return line;
+                },
+              },
+              filter: (item) =>
+                !["Daily min", "Daily range"].includes(item.dataset.label),
+            },
+          },
+        },
+        plugins: [bandLines],
+      });
+    }
+
     loadDashboard();
     pollTimer = setInterval(() => loadDashboard(false), POLL_MS);
 
@@ -1699,6 +2479,7 @@
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         if (chartInstance) chartInstance.resize();
+        if (trendsChartInstance) trendsChartInstance.resize();
         if (lastTodayStr) renderDayChips(lastTodayStr);
       }, 150);
     });
