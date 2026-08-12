@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <em>ESP32 → Raspberry Pi → live home PWA · public Streamlit portfolio</em>
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=500&size=18&duration=3500&pause=1000&color=2D5A3D&center=true&vCenter=true&width=560&height=50&lines=ESP32+%E2%86%92+Raspberry+Pi+%E2%86%92+live+home+PWA;Public+Streamlit+portfolio+anyone+can+open" alt="Typing SVG" />
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@ Most “plant apps” stop at a demo sketch. This one runs **24/7**:
 3. A **home PWA** on the local network shows live status and day charts  
 4. A **Streamlit Cloud** app mirrors a synced CSV snapshot for recruiters / visitors  
 
-Built to care for real plants at home — and to prove one person can design, ship, and maintain a small IoT product end to end.
+Dulf Vincent Genis built this to care for real plants at home — and to show that one person can design, ship, and maintain a small IoT product end to end.
 
 ---
 
@@ -56,7 +56,7 @@ It's a concrete answer to: *can you design, ship, and maintain a small IoT produ
 
 | | Home PWA | Streamlit Cloud |
 |---|---|---|
-| Who | Me, on home Wi‑Fi | Visitors / recruiters |
+| Who | Dulf, on home Wi‑Fi | Visitors / recruiters |
 | Where | `http://plant-pi.local:8000` | **[plant-monitor.streamlit.app](https://plant-monitor.streamlit.app/)** |
 | Data | Live Pi SQLite + CSV | Committed `readings.csv` |
 | Refresh | ~every 30s while open | After sync + `git push` |
@@ -205,5 +205,5 @@ Full systemd + ESP32 wiring: **[DEPLOY.md](DEPLOY.md)**.
 ---
 
 <p align="center">
-  <sub>Built by Dulf · personal IoT + portfolio project · MIT License</sub>
+  <sub>Built by Dulf Vincent Genis · personal IoT + portfolio project · MIT License</sub>
 </p>
