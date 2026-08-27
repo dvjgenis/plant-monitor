@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="static/icon-animated.svg" alt="Plant Hydration Hub" width="96" height="96">
+  <img src="docs/banner.svg" alt="Plant Hydration Hub — ESP32 to Raspberry Pi, live PWA, and public Streamlit demo" width="100%">
 </p>
 
 <h1 align="center">Dulf’s Plant Hydration Hub</h1>
